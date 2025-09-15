@@ -120,7 +120,7 @@ export const checkAuthStatus = async (req, res) => {
     } else {
         res.status(401).json({ message: "User Is Not Logged In" });
     }
-};
+};   
 
 export const logOut = async (req, res) => {
     if (!req.user) {

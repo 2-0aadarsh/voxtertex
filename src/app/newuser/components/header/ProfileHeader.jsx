@@ -1,16 +1,30 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import ProfileButton from "../common/ProfileButton";
-import SearchBar from "../common/SearchBar";
 import { LuBell } from "react-icons/lu";
+import Logo from "@/components/Logo";
 
 const ProfileHeader = () => {
   const [notifications, setNotifications] = useState(3);
+  const router = useRouter();
+
+  const handleLogoClick = () => {
+    router.push("/home");
+  };
+
   return (
-    <header className="w-full h-20 bg-[#FFFFFF] flex items-center justify-end px-6 text-[#000000] shadow-sm">
+    <header className="relative w-full h-20 bg-[#FFFFFF] flex items-center justify-between px-6 text-[#000000] shadow-sm">
+      {/* Logo Section */}
+      <div className="flex items-center">
+        <div onClick={handleLogoClick} className="cursor-pointer">
+          <Logo />
+        </div>
+      </div>
+
+      {/* Right Section - Notifications and Profile */}
       <div className="flex items-center gap-8">
-        <SearchBar />
         {/* Notification Bell */}
         <div className="relative cursor-pointer">
           <LuBell className="w-6 h-6 font-[800]" />

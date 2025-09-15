@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { RiEditBoxFill } from "react-icons/ri";
 
-const SectionHeader = ({ id, icon, title, subTitle = "" }) => {
+const SectionHeader = ({ id, icon, title, subTitle = "", onAddClick }) => {
   return (
     <header
       id={id}
@@ -33,6 +33,7 @@ const SectionHeader = ({ id, icon, title, subTitle = "" }) => {
 
       {/* Animated Add Button */}
       <motion.button
+        onClick={onAddClick}
         whileHover={{
           scale: 1.05,
           // backgroundColor: "#FF6B35",

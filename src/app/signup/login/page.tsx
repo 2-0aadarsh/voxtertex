@@ -1,19 +1,27 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react'
 import ImageCarousel from '../components/ImageCarousel'
-import { LoginResponse } from './types'
+import { useAuth } from '@/store/hooks'
+import { useLoginMutation } from '@/store/slices/authSlice'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const [apiError, setApiError] = useState('')
   const [isSuccess, setIsSuccess] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  const router = useRouter()
+  
+  // Redux store hooks
+  const { user, isAuthenticated } = useAuth()
+  const [loginUser] = useLoginMutation()
 
   const isFormValid = email.trim() !== '' && password.trim() !== '' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
@@ -24,56 +32,81 @@ export default function LoginPage() {
     setApiError('')
 
     try {
-      const response = await fetch('http://localhost:3001/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim(),
-          password: password.trim()
-        }),
-        credentials: 'include', // Include cookies for session management
-      })
-
-      const data: LoginResponse = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed')
-      }
-
-      if (data.success) {
-        setIsSuccess(true)
-        setSuccessMessage(data.message || 'Login successful!')
+      console.log('🔍 Attempting login with Redux slice...')
+      
+      // Use Redux store login
+      const result = await loginUser({
+        email: email.trim(),
+        password: password.trim(),
+      }).unwrap()
+      
+      console.log('🎉 LOGIN SUCCESS - Redux Store Data:')
+      console.log('📊 Login Result:', result)
+      console.log('📋 Result Structure:', Object.keys(result))
+      console.log('👤 User Data:', result.user)
+      console.log('🔑 Tokens:', result.tokens)
+      console.log('🎯 Redirect URL:', result.redirectUrl)
+      
+      setIsSuccess(true)
+      setSuccessMessage('Login successful!')
+      
+      // Reset form
+      setEmail('')
+      setPassword('')
+      
+      // Log store state after login
+      setTimeout(() => {
+        console.log('🔍 Store State After Login:')
+        console.log('✅ Is Authenticated:', isAuthenticated)
+        console.log('👤 Current User:', user)
+      }, 1000)
+      
+      // Redirect directly to role-specific page based on user role
+      setTimeout(() => {
+        const userRole = result.user?.role;
+        console.log('🎯 User role for redirect:', userRole);
         
-        // Store token if provided
-        if (data.token) {
-          localStorage.setItem('authToken', data.token)
+        switch (userRole) {
+          case 'speaker':
+            router.push('/speakerUser');
+            break;
+          case 'organizer':
+            router.push('/newuser');
+            break;
+          case 'participant':
+            router.push('/participant');
+            break;
+          default:
+            router.push('/newuser'); // fallback
         }
-        
-        // Store user data if provided
-        if (data.user) {
-          localStorage.setItem('userData', JSON.stringify(data.user))
+      }, 1500) // Reduced delay for faster redirect
+    } catch (error: unknown) {
+      console.error('❌ Login error:', error)
+      
+      // Handle different types of errors
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error && typeof error === 'object') {
+        const errorObj = error as Record<string, unknown>;
+        if (errorObj?.data && typeof errorObj.data === 'object') {
+          const data = errorObj.data as Record<string, unknown>;
+          if (typeof data.message === 'string') {
+            errorMessage = data.message;
+          }
+        } else if (typeof errorObj?.message === 'string') {
+          errorMessage = errorObj.message;
+        } else if (errorObj?.status === 401) {
+          errorMessage = 'Invalid email or password. Please check your credentials.';
+        } else if (errorObj?.status === 404) {
+          errorMessage = 'Login service is currently unavailable. Please try again later.';
+        } else if (typeof errorObj?.status === 'number' && errorObj.status >= 500) {
+          errorMessage = 'Server error occurred. Please try again later.';
+        } else if (errorObj?.name === 'TypeError' && typeof errorObj?.message === 'string' && errorObj.message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
         }
-
-        // Reset form
-        setEmail('')
-        setPassword('')
-        
-        // Redirect after success
-        setTimeout(() => {
-          window.location.href = '/dashboard' // Redirect to dashboard after successful login
-        }, 2000)
-      } else {
-        setApiError(data.message || 'Login failed')
       }
-    } catch (error) {
-      console.error('Login error:', error)
-      setApiError(
-        error instanceof Error 
-          ? error.message 
-          : 'Network error. Please check your connection and try again.'
-      )
+      
+      setApiError(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -105,16 +138,7 @@ export default function LoginPage() {
             </motion.div>
             <h1 className="text-3xl font-bold text-blue-900 mb-2">Welcome Back!</h1>
             <p className="text-gray-500 text-sm mb-6">{successMessage}</p>
-            <button 
-              onClick={() => {
-                setIsSuccess(false)
-                setEmail('')
-                setPassword('')
-              }}
-              className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-md transition-colors font-medium"
-            >
-              Login Again
-            </button>
+            <p className="text-gray-400 text-xs">Redirecting to your dashboard...</p>
           </div>
         </div>
       </div>
@@ -236,12 +260,11 @@ export default function LoginPage() {
 
             <div className="text-center mt-6">
               <p className="text-xs text-gray-600">
-                Don't have an account?{' '}
+                Don&apos;t have an account?{' '}
                 <button
                   type="button"
                   onClick={() => {
-                   
-                    window.location.href = '/signup'
+                    router.push('/signup')
                   }}
                   className="text-blue-600 hover:text-blue-800 font-medium underline transition-colors"
                 >

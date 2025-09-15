@@ -1,239 +1,424 @@
-import Availability from "../models/availability.js";
-import User from "../models/user.js";
-import Profile from "../models/profile.js";
+// import Availability from "../models/availability.js";
+// import User from "../models/user.js";
+// import Profile from "../models/profile.js";
 
-// Add new availability slot
-export const addAvailability = async (req, res) => {
+// // Add new availability slot
+// export const addAvailability = async (req, res) => {
+//   try {
+//     const { date, eventType, timeSlot } = req.body;
+
+//     const validUser = await User.findOne({
+//       _id: req.user._id
+//     });
+//     if(validUser.role !== 'Expert') {
+//       return res.status(403).json({
+//         success: false,
+//         message: "Only experts can create availability slots"
+//       });
+//     }
+
+//     const currentDate = new Date();
+//     const inputDate = new Date(date);
+
+//     if (inputDate < currentDate) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Cannot create availability for past dates"
+//       });
+//     }
+
+//     // Get user details
+//     const user = await User.findById(req.user._id);
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found"
+//       });
+//     }
+
+//     const userName = `${user.firstName} ${user.lastName}`;
+
+//     // Check for duplicate
+//     const duplicate = await Availability.findOne({
+//       expertId: req.user._id,
+//       date,
+//       "timeSlot.start": timeSlot.start,
+//       "timeSlot.end": timeSlot.end,
+//       eventType
+//     });
+
+//     if (duplicate) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Identical availability slot already exists"
+//       });
+//     }
+
+//     // Check for time overlap
+//     const overlap = await Availability.findOne({
+//       expertId: req.user._id,
+//       date,
+//       isBooked: false,
+//       $or: [
+//         {
+//           "timeSlot.start": { $lt: timeSlot.end },
+//           "timeSlot.end": { $gt: timeSlot.start }
+//         }
+//       ]
+//     });
+
+//     if (overlap) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Time overlaps with existing ${overlap.eventType} commitment`,
+//         conflictingSlot: overlap
+//       });
+//     }
+
+//     const newAvailability = new Availability({
+//       ...req.body,
+//       expertId: req.user._id,
+//       userName
+//     });
+
+//     await newAvailability.save();
+//     res.status(201).json({
+//       success: true,
+//       availability: newAvailability
+//     });
+
+//   } catch (error) {
+//     if (error.code === 11000) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Duplicate time slot detected"
+//       });
+//     }
+//     res.status(500).json({
+//       success: false,
+//       message: error.message
+//     });
+//   }
+// };
+
+// // Get all availabilities for an expert
+// export const getExpertAvailabilities = async (req, res) => {
+//   try {
+//     const availabilities = await Availability.find({
+//       expertId: req.user._id,
+//       isBooked: false
+//     }).sort({ date: 1 });
+
+//     res.status(200).json({
+//       success: true,
+//       count: availabilities.length,
+//       availabilities
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Error fetching availabilities",
+//       error: error.message
+//     });
+//   }
+// };
+
+// // Update an availability slot
+// export const updateAvailability = async (req, res) => {
+//   try {
+//     const { availabilityId } = req.params;
+
+//     const { date } = req.body;
+
+//     // Validate date is not in the past if date is being updated
+//     if (date) {
+//       const currentDate = new Date();
+//       const inputDate = new Date(date);
+      
+//       if (inputDate < currentDate) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Cannot update availability to past dates"
+//         });
+//       }
+//     }
+
+//     // Prevent userName updates
+//     if (req.body.userName) {
+//       delete req.body.userName;
+//     }
+
+//     const availability = await Availability.findOneAndUpdate(
+//       {
+//         _id: availabilityId,
+//         expertId: req.user._id,
+//         isBooked: false
+//       },
+//       req.body,
+//       { new: true, runValidators: true }
+//     );
+
+//     if (!availability) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Availability not found or already booked"
+//       });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Availability updated successfully",
+//       availability
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Error updating availability",
+//       error: error.message
+//     });
+//   }
+// };
+
+// // Delete an availability slot
+// export const deleteAvailability = async (req, res) => {
+//   try {
+//     const { availabilityId } = req.params;
+
+//     const availability = await Availability.findOneAndDelete({
+//       _id: availabilityId,
+//       expertId: req.user._id,
+//       isBooked: false
+//     });
+
+//     if (!availability) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Availability not found or already booked"
+//       });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Availability deleted successfully"
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Error deleting availability",
+//       error: error.message
+//     });
+//   }
+// };
+
+// // Get availability by ID (new addition)
+// export const getAvailabilityById = async (req, res) => {
+//   try {
+//     const availability = await Availability.findOne({
+//       _id: req.params.availabilityId,
+//       expertId: req.user._id
+//     }).populate('expertId', 'firstName lastName');
+
+//     if (!availability) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Availability not found"
+//       });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       availability
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Error fetching availability",
+//       error: error.message
+//     });
+//   }
+// };
+
+
+
+import Availability from '../models/availability.js';
+
+// Helper: normalize date (set to UTC midnight to avoid duplicates across zones)
+const normalizeDate = (d) => {
+  const dt = new Date(d);
+  // set hours to 0, keep as local midnight. If you want UTC use setUTCHours.
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+};
+
+// Get availability for a specific month
+// export const getAvailability = async (req, res) => {
+//   try {
+//     const { year, month } = req.params;
+//     const userId = req.user._id;
+
+//     const startDate = new Date(Number(year), Number(month) - 1, 1);
+//     const endDate = new Date(Number(year), Number(month), 0);
+//     startDate.setHours(0,0,0,0);
+//     endDate.setHours(23,59,59,999);
+
+//     const availability = await Availability.find({
+//       userId,
+//       date: { $gte: startDate, $lte: endDate }
+//     }).sort({ date: 1 });
+
+//     res.status(200).json({ success: true, data: availability });
+//   } catch (error) {
+//     console.error('Error fetching availability:', error);
+//     res.status(500).json({ success: false, message: 'Failed to fetch availability' });
+//   }
+// };
+
+// Get availability for authenticated user
+export const getAvailability = async (req, res, next) => {
   try {
-    const { date, eventType, timeSlot } = req.body;
+    const { year, month } = req.params;
+    const userId = req.user._id; // Get user from JWT authentication
+    
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 0, 23, 59, 59);
 
-    const validUser = await User.findOne({
-      _id: req.user._id
-    });
-    if(validUser.role !== 'Expert') {
-      return res.status(403).json({
-        success: false,
-        message: "Only experts can create availability slots"
-      });
-    }
-
-    const currentDate = new Date();
-    const inputDate = new Date(date);
-
-    if (inputDate < currentDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Cannot create availability for past dates"
-      });
-    }
-
-    // Get user details
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      });
-    }
-
-    const userName = `${user.firstName} ${user.lastName}`;
-
-    // Check for duplicate
-    const duplicate = await Availability.findOne({
-      expertId: req.user._id,
-      date,
-      "timeSlot.start": timeSlot.start,
-      "timeSlot.end": timeSlot.end,
-      eventType
+    const availability = await Availability.find({
+      userId: userId, // Filter by authenticated user
+      dates: { $gte: start, $lte: end },
     });
 
-    if (duplicate) {
-      return res.status(400).json({
-        success: false,
-        message: "Identical availability slot already exists"
-      });
-    }
-
-    // Check for time overlap
-    const overlap = await Availability.findOne({
-      expertId: req.user._id,
-      date,
-      isBooked: false,
-      $or: [
-        {
-          "timeSlot.start": { $lt: timeSlot.end },
-          "timeSlot.end": { $gt: timeSlot.start }
-        }
-      ]
-    });
-
-    if (overlap) {
-      return res.status(400).json({
-        success: false,
-        message: `Time overlaps with existing ${overlap.eventType} commitment`,
-        conflictingSlot: overlap
-      });
-    }
-
-    const newAvailability = new Availability({
-      ...req.body,
-      expertId: req.user._id,
-      userName
-    });
-
-    await newAvailability.save();
-    res.status(201).json({
-      success: true,
-      availability: newAvailability
-    });
-
-  } catch (error) {
-    if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: "Duplicate time slot detected"
-      });
-    }
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(200).json({ success: true, data: availability });
+  } catch (err) {
+    next(err);
   }
 };
 
-// Get all availabilities for an expert
-export const getExpertAvailabilities = async (req, res) => {
-  try {
-    const availabilities = await Availability.find({
-      expertId: req.user._id,
-      isBooked: false
-    }).sort({ date: 1 });
 
-    res.status(200).json({
+// Get availability for a date range (query: startDate, endDate)
+export const getAvailabilityByDateRange = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const userId = req.user._id; // Get user from JWT authentication
+
+    // Query availability where date is within range for authenticated user
+    const availabilities = await Availability.find({
+      userId: userId, // Filter by authenticated user
+      dates: { $elemMatch: { $gte: new Date(startDate), $lte: new Date(endDate) } },
+    }).sort({ "dates": 1 });
+
+    return res.status(200).json({ 
       success: true,
       count: availabilities.length,
-      availabilities
+      data: availabilities 
     });
+
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching availabilities",
-      error: error.message
-    });
+    console.error("Error fetching availability by range:", error);
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
-// Update an availability slot
-export const updateAvailability = async (req, res) => {
-  try {
-    const { availabilityId } = req.params;
-
-    const { date } = req.body;
-
-    // Validate date is not in the past if date is being updated
-    if (date) {
-      const currentDate = new Date();
-      const inputDate = new Date(date);
-      
-      if (inputDate < currentDate) {
-        return res.status(400).json({
-          success: false,
-          message: "Cannot update availability to past dates"
-        });
-      }
-    }
-
-    // Prevent userName updates
-    if (req.body.userName) {
-      delete req.body.userName;
-    }
-
-    const availability = await Availability.findOneAndUpdate(
-      {
-        _id: availabilityId,
-        expertId: req.user._id,
-        isBooked: false
-      },
-      req.body,
-      { new: true, runValidators: true }
-    );
-
-    if (!availability) {
-      return res.status(404).json({
-        success: false,
-        message: "Availability not found or already booked"
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Availability updated successfully",
-      availability
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error updating availability",
-      error: error.message
-    });
-  }
-};
-
-// Delete an availability slot
-export const deleteAvailability = async (req, res) => {
-  try {
-    const { availabilityId } = req.params;
-
-    const availability = await Availability.findOneAndDelete({
-      _id: availabilityId,
-      expertId: req.user._id,
-      isBooked: false
-    });
-
-    if (!availability) {
-      return res.status(404).json({
-        success: false,
-        message: "Availability not found or already booked"
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Availability deleted successfully"
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error deleting availability",
-      error: error.message
-    });
-  }
-};
-
-// Get availability by ID (new addition)
+// Get availability for a id
 export const getAvailabilityById = async (req, res) => {
   try {
+    const { availabilityId } = req.params;
+
+    // Fetch the availability
     const availability = await Availability.findOne({
-      _id: req.params.availabilityId,
-      expertId: req.user._id
-    }).populate('expertId', 'firstName lastName');
+      _id: availabilityId,
+      userId: req.user._id, // ensure user can only access their own data
+    });
 
     if (!availability) {
       return res.status(404).json({
         success: false,
-        message: "Availability not found"
+        message: "Availability not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      availability
+      data: availability,
     });
   } catch (error) {
+    console.error("Error fetching availability by ID:", error);
     res.status(500).json({
       success: false,
-      message: "Error fetching availability",
-      error: error.message
+      message: "Server error while fetching availability",
     });
+  }
+};
+
+// Set availability for single or multiple dates
+export const setAvailability = async (req, res, next) => {
+  try {
+    const { dates, eventTypes, modes, timeSlots } = req.body;
+    const userId = req.user._id; // Get user from JWT authentication
+    
+    console.log('Setting availability for user:', userId, { dates, eventTypes, modes, timeSlots });
+    
+    if (!Array.isArray(dates) || dates.length === 0) {
+      return res.status(400).json({ message: "At least one date is required" });
+    }
+
+    // Upsert a single Availability entry for this user
+    const availability = await Availability.findOneAndUpdate(
+      { userId }, // keep one record per user
+      {
+        $addToSet: { dates: { $each: dates.map(d => new Date(d)) } }, // prevent duplicate dates
+        $set: {
+          eventTypes,
+          modes,
+          timeSlots,
+          updatedAt: new Date(),
+        },
+        $setOnInsert: { createdAt: new Date(), userId },
+      },
+      { new: true, upsert: true }
+    );
+
+    console.log('Availability saved successfully:', availability._id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Availability updated successfully",
+      data: availability,
+    });
+  } catch (error) {
+    console.error('Error setting availability:', error);
+    next(error);
+  }
+};
+
+
+
+// Delete availability for specific dates
+export const deleteAvailability = async (req, res) => {
+  try {
+    const { dates } = req.body;
+    const userId = req.user._id;
+
+    if (!Array.isArray(dates) || dates.length === 0) {
+      return res.status(400).json({ success: false, message: 'Dates array is required' });
+    }
+
+    const normalizedDates = dates.map(d => {
+      const nd = new Date(d);
+      nd.setHours(0,0,0,0);
+      return nd;
+    });
+
+    const result = await Availability.deleteMany({
+      userId,
+      date: { $in: normalizedDates }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Deleted ${result.deletedCount} availability entries`
+    });
+  } catch (error) {
+    console.error('Error deleting availability:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete availability' });
   }
 };

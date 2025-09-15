@@ -9,7 +9,7 @@ const mutualReviewSchema = new mongoose.Schema({
   },
   reviewerType: {
     type: String,
-    enum: ['business', 'expert', 'freelancer'],
+    enum: ['speaker', 'expert', 'participant'],
     required: true
   },
   rating: {

@@ -1,8 +1,8 @@
 import { CiFileOn } from "react-icons/ci";
 
-import EventIcon from "../../common/EventIcon"
+import EventIcon from "../../common/EventIcon";
 
-const PostHeader = () => {
+const PostHeader = ({ recentPosts }) => {
   return (
     <div className="bg-[#FF6B35] text-white p-6 rounded-t-xl flex items-center justify-between">
       <div className="flex items-center ">
@@ -21,12 +21,12 @@ const PostHeader = () => {
 
       <div className="flex items-center text-sm">
         <div className="flex items-center justify-between gap-3 ">
-          <EventIcon width="22" height="22" textcolor="#ffffff"/>
-          <span>3 posts</span>
+          <EventIcon width="22" height="22" textcolor="#ffffff" />
+          <span>{recentPosts?.length || 0} posts</span>
         </div>
       </div>
     </div>
   );
-}
+};
 
-export default PostHeader
+export default PostHeader;

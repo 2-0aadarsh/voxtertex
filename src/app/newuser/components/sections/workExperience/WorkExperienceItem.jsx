@@ -58,4 +58,4 @@ const WorkExperienceItem = ({
   );
 };
 
-export default WorkExperienceItem
+export default WorkExperienceItem;

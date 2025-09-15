@@ -1,260 +1,125 @@
-'use client'
+'use client';
 
-import { useState, useCallback } from 'react'
-import { motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Check, AlertCircle, CheckCircle2 } from 'lucide-react'
-import ProgressIndicator from './ProgressIndicator'
-import SocialSigninButtons from './SocialSigninButtons'
-import { activitiesByIndustry } from '../data/activitiesData'
-import { SignupResponse } from '../types'
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import ProgressIndicator from './ProgressIndicator';
+import StepOne from './steps/StepOne';
+import StepOtp from './steps/StepOtp';
+import StepTwo from './steps/StepTwo';
+import StepThree from './steps/StepThree';
+import SuccessStep from './steps/SuccessStep';
+import { useSignup } from '../context/SignupContext';
+import { registerUser, sendOtp } from '../services/authService';
+import { formatName } from './utils/formHelpers';
 
-interface FormData {
-  fullName: string
-  email: string
-  password: string
-  whoAreYou: string
-  companyTitle: string
-  activity: string[]
-}
+export default function SignupForm() {
+  const { 
+    currentStep, 
+    setCurrentStep, 
+    formData, 
+    updateFormData, 
+    isLoading, 
+    setIsLoading, 
+    error, 
+    setError 
+  } = useSignup();
+  const [isSuccess, setIsSuccess] = useState(false);
 
-interface SignupFormProps {
-  initialStep?: number
-  initialFormData?: Partial<FormData>
-}
+  const totalSteps = 4; // Including OTP verification step
 
-export default function SignupForm({ 
-  initialStep = 1, 
-  initialFormData = {} 
-}: SignupFormProps) {
-  const [currentStep, setCurrentStep] = useState(initialStep)
-  const [isLoading, setIsLoading] = useState(false)
-  const [apiError, setApiError] = useState<string>('')
-  const [isSuccess, setIsSuccess] = useState(false)
-  const [successMessage, setSuccessMessage] = useState('')
-  
-  const [formData, setFormData] = useState<FormData>({
-    fullName: '',
-    email: '',
-    password: '',
-    whoAreYou: '',
-    companyTitle: '',
-    activity: [],
-    ...initialFormData
-  })
-
-  const totalSteps = 3
-
-  const updateFormData = useCallback((updates: Partial<FormData>) => {
-    setFormData(prev => ({ ...prev, ...updates }))
-    // Clear any existing errors when user starts typing
-    if (apiError) {
-      setApiError('')
-    }
-  }, [apiError])
-
-  const handleNext = () => {
-    if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1)
+  const handleNext = async () => {
+    if (currentStep === 1) {
+      // When moving from step 1 to OTP verification, send OTP
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        await sendOtp(formData.email);
+        setCurrentStep(currentStep + 1);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to send verification code');
+      } finally {
+        setIsLoading(false);
+      }
+    } else if (currentStep < totalSteps) {
+      setCurrentStep(currentStep + 1);
     } else {
-      handleSubmit()
+      handleSubmit();
     }
-  }
+  };
 
   const handlePrev = () => {
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1)
+      setCurrentStep(currentStep - 1);
     }
-  }
+  };
 
   const handleSubmit = async () => {
-    setIsLoading(true)
-    setApiError('')
+    setIsLoading(true);
+    setError(null);
     
     try {
-      // Split full name for backend
-      const nameParts = formData.fullName.trim().split(' ')
-      const firstName = nameParts[0] || ''
-      const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '' // Use first name if no last name
-      
-      const backendData = {
-        firstName,
-        lastName,
+      const response = await registerUser({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         email: formData.email,
-        phone: formData.email, // Using email as phone for now, you can add phone field later
-        password: formData.password
-      }
-      
-      const response = await fetch('http://localhost:3001/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(backendData),
-        credentials: 'include', // Include cookies for session management
-      })
+        password: formData.password,
+        phone: null, // No phone number required
+        role: formData.whoAreYou,
+        industry: formData.companyTitle,
+        activities: formData.activity
+      });
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Something went wrong')
-      }
-
-      // Backend returns success field in response
-      if (response.ok && (data.success || data.user)) {
-        setIsSuccess(true)
-        setSuccessMessage(data.message || 'Account created successfully! Welcome to Voxvertex!')
+      if (response.success) {
+        setIsSuccess(true);
         
-        // Optional: Reset form after successful signup
-        // setFormData({
-        //   fullName: '',
-        //   email: '',
-        //   password: '',
-        //   whoAreYou: '',
-        //   companyTitle: '',
-        //   activity: []
-        // })
-        // setCurrentStep(1)
-      } else {
-        setApiError(data.message || 'Failed to create account')
+        // Redirect to login page after successful signup
+        setTimeout(() => {
+          window.location.href = '/signup/login';
+        }, 2000);
       }
     } catch (error) {
-      console.error('Signup error:', error)
-      setApiError(
-        error instanceof Error 
-          ? error.message 
-          : 'Network error. Please check your connection and try again.'
-      )
+      setError(error instanceof Error ? error.message : 'Failed to create account');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const isStepValid = () => {
     switch (currentStep) {
       case 1:
-        return formData.fullName.trim().length >= 2 && 
-               formData.email && 
-               /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)
+        return formData.firstName && formData.lastName && formData.email;
       case 2:
-        return formData.password && isPasswordValid(formData.password)
+        return formData.isEmailVerified;
       case 3:
-        return formData.whoAreYou && 
-               formData.companyTitle && 
-               formData.activity.length > 0 && 
-               formData.activity.length <= 3
+        return formData.password && formData.confirmPassword && formData.password === formData.confirmPassword;
+      case 4:
+        return formData.whoAreYou && formData.companyTitle && formData.activity.length > 0;
       default:
-        return false
+        return false;
     }
-  }
+  };
 
-  const handleIndustryChange = (industry: string) => {
-    updateFormData({ 
-      companyTitle: industry,
-      activity: [] 
-    })
-  }
+  const handleVerifySuccess = () => {
+    updateFormData({ isEmailVerified: true });
+    // Automatically move to the next step after verification
+    setCurrentStep(currentStep + 1);
+  };
 
-  const handleActivityToggle = (activityValue: string) => {
-    const currentActivities = formData.activity || []
-    
-    if (currentActivities.includes(activityValue)) {
-      updateFormData({
-        activity: currentActivities.filter(a => a !== activityValue)
-      })
-    } else if (currentActivities.length < 3) {
-      updateFormData({
-        activity: [...currentActivities, activityValue]
-      })
-    }
-  }
-
-  const getAvailableActivities = () => {
-    return activitiesByIndustry[formData.companyTitle as keyof typeof activitiesByIndustry] || []
-  }
-
-  const isPasswordValid = (password: string) => {
-    return password.length >= 6 &&
-           /[A-Z]/.test(password) &&
-           /[a-z]/.test(password) &&
-           /[!@#$%^&*(),.?":{}|<>]/.test(password)
-  }
-
-  // Success state
   if (isSuccess) {
-    return (
-      <div className="w-full">
-        <div className="text-center">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="mb-4"
-          >
-            <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto" />
-          </motion.div>
-          <h1 className="text-xl font-bold mb-2 text-gray-900">Welcome aboard!</h1>
-          <p className="text-sm text-gray-600 mb-6">
-            {successMessage}
-          </p>
-          <button 
-            onClick={() => {
-              setIsSuccess(false)
-              setCurrentStep(1)
-              setFormData({
-                fullName: '',
-                email: '',
-                password: '',
-                whoAreYou: '',
-                companyTitle: '',
-                activity: []
-              })
-            }}
-            className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-md transition-colors"
-          >
-            Create Another Account
-          </button>
-        </div>
-      </div>
-    )
+    return <SuccessStep />;
   }
 
   return (
     <div className="w-full">
       <div className="text-center mb-3">
-        <h1 className="text-lg font-bold mb-0.5 text-gray-800">Create your account</h1>
-        <p className="text-xs text-gray-600">Join our community and unlock exclusive features</p>
+        <h1 className="text-lg font-bold mb-0.5">Create your account</h1>
+        <p className="text-xs text-gray-500">Join our community and unlock exclusive features</p>
       </div>
 
       <ProgressIndicator currentStep={currentStep} totalSteps={totalSteps} />
-
-      {/* Error Message */}
-      {apiError && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-3 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2"
-        >
-          <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm text-red-800">{apiError}</p>
-          </div>
-        </motion.div>
-      )}
-
-      {currentStep === 1 && (
-        <div className="mb-3">
-          <SocialSigninButtons />
-          <div className="relative my-3">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">Or continue with email</span>
-            </div>
-          </div>
-        </div>
-      )}
-
+      
       <div className="mb-4">
         <motion.div
           key={currentStep}
@@ -265,258 +130,73 @@ export default function SignupForm({
           className="space-y-2.5"
         >
           {currentStep === 1 && (
-            <>
-              <div className="space-y-1">
-                <label htmlFor="fullName" className="block text-xs font-medium text-gray-700">
-                  Full Name
-                </label>
-                <input
-                  id="fullName"
-                  type="text"
-                  value={formData.fullName}
-                  onChange={(e) => updateFormData({ fullName: e.target.value })}
-                  placeholder="Enter your full name"
-                  className={`w-full px-4 py-3 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent placeholder-gray-400 text-gray-700 ${
-                    formData.fullName && formData.fullName.trim().length < 2 
-                      ? 'ring-2 ring-red-300 border-red-300' 
-                      : ''
-                  }`}
-                />
-                {formData.fullName && formData.fullName.trim().length < 2 && (
-                  <p className="text-xs text-red-600">Name must be at least 2 characters long</p>
-                )}
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="email" className="block text-xs font-medium text-gray-700">
-                  Email Address
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => updateFormData({ email: e.target.value })}
-                  placeholder="Enter your email address"
-                  className={`w-full px-4 py-3 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent placeholder-gray-400 text-gray-700 ${
-                    formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)
-                      ? 'ring-2 ring-red-300 border-red-300' 
-                      : ''
-                  }`}
-                />
-                {formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) && (
-                  <p className="text-xs text-red-600">Please enter a valid email address</p>
-                )}
-              </div>
-            </>
+            <StepOne 
+              formData={formData} 
+              updateFormData={updateFormData} 
+            />
           )}
 
           {currentStep === 2 && (
-            <div className="space-y-1">
-              <label htmlFor="password" className="block text-xs font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => updateFormData({ password: e.target.value })}
-                placeholder="Create a secure password"
-                className={`w-full px-4 py-3 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent placeholder-gray-400 text-gray-700 ${
-                  formData.password && !isPasswordValid(formData.password)
-                    ? 'ring-2 ring-red-300 border-red-300' 
-                    : ''
-                }`}
-              />
-              <div className="space-y-1">
-                <p className="text-xs text-gray-600 font-medium">Password requirements:</p>
-                <div className="space-y-0.5">
-                  <div className={`flex items-center gap-1 text-xs ${
-                    formData.password && formData.password.length >= 6 
-                      ? 'text-green-600' 
-                      : 'text-gray-500'
-                  }`}>
-                    <span className={`w-3 h-3 rounded-full flex items-center justify-center text-xs ${
-                      formData.password && formData.password.length >= 6
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-300 text-gray-500'
-                    }`}>
-                      ✓
-                    </span>
-                    At least 6 characters
-                  </div>
-                  <div className={`flex items-center gap-1 text-xs ${
-                    formData.password && /[A-Z]/.test(formData.password)
-                      ? 'text-green-600' 
-                      : 'text-gray-500'
-                  }`}>
-                    <span className={`w-3 h-3 rounded-full flex items-center justify-center text-xs ${
-                      formData.password && /[A-Z]/.test(formData.password)
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-300 text-gray-500'
-                    }`}>
-                      ✓
-                    </span>
-                    At least 1 uppercase letter
-                  </div>
-                  <div className={`flex items-center gap-1 text-xs ${
-                    formData.password && /[a-z]/.test(formData.password)
-                      ? 'text-green-600' 
-                      : 'text-gray-500'
-                  }`}>
-                    <span className={`w-3 h-3 rounded-full flex items-center justify-center text-xs ${
-                      formData.password && /[a-z]/.test(formData.password)
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-300 text-gray-500'
-                    }`}>
-                      ✓
-                    </span>
-                    At least 1 lowercase letter
-                  </div>
-                  <div className={`flex items-center gap-1 text-xs ${
-                    formData.password && /[!@#$%^&*(),.?":{}|<>]/.test(formData.password)
-                      ? 'text-green-600' 
-                      : 'text-gray-500'
-                  }`}>
-                    <span className={`w-3 h-3 rounded-full flex items-center justify-center text-xs ${
-                      formData.password && /[!@#$%^&*(),.?":{}|<>]/.test(formData.password)
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-300 text-gray-500'
-                    }`}>
-                      ✓
-                    </span>
-                    At least 1 special character
-                  </div>
-                </div>
-              </div>
-            </div>
+            <StepOtp 
+              email={formData.email} 
+              onVerifySuccess={handleVerifySuccess} 
+            />
           )}
 
           {currentStep === 3 && (
-            <>
-              <div className="space-y-1">
-                <label htmlFor="whoAreYou" className="block text-xs font-medium text-gray-700">
-                  Who are you?
-                </label>
-                <select
-                  id="whoAreYou"
-                  value={formData.whoAreYou}
-                  onChange={(e) => updateFormData({ whoAreYou: e.target.value })}
-                  className="w-full px-4 py-3 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-700"
-                >
-                  <option value="">Select your role</option>
-                  <option value="speaker">Speaker</option>
-                  <option value="organizer">Organizer</option>
-                  <option value="participant">Participant</option>
-                </select>
-              </div>
+            <StepTwo 
+              formData={formData} 
+              updateFormData={updateFormData} 
+            />
+          )}
 
-              <div className="space-y-1">
-                <label htmlFor="companyTitle" className="block text-xs font-medium text-gray-700">
-                  Industry
-                </label>
-                <select
-                  id="companyTitle"
-                  value={formData.companyTitle}
-                  onChange={(e) => handleIndustryChange(e.target.value)}
-                  className="w-full px-4 py-3 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-700"
-                >
-                  <option value="">Select your industry</option>
-                  <option value="technology">Technology</option>
-                  <option value="healthcare">Healthcare and Medicine</option>
-                  <option value="finance">Finance and Banking</option>
-                  <option value="education">Education</option>
-                  <option value="business">Business and Management</option>
-                  <option value="engineering">Engineering</option>
-                  <option value="art">Art and Entertainment</option>
-                  <option value="law">Law and Legal Studies</option>
-                  <option value="marketing">Marketing and Communications</option>
-                  <option value="environmental">Environmental and Sustainability</option>
-                  <option value="manufacturing">Manufacturing and Industry</option>
-                  <option value="social">Social Sciences and Humanities</option>
-                  <option value="retail">Retail and E-Commerce</option>
-                  <option value="energy">Energy and Utilities</option>
-                  <option value="realestate">Real Estate and Property Development</option>
-                </select>
-              </div>
-
-              {formData.companyTitle && (
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-gray-700">
-                    Primary Activities (Select up to 3)
-                  </label>
-                  <div className="text-xs text-gray-500 mb-1">
-                    {formData.activity?.length || 0}/3 selected
-                  </div>
-                  <div className="h-24 overflow-y-auto border border-gray-200 rounded-md p-2 bg-gray-50">
-                    {getAvailableActivities().map((activity) => (
-                      <label
-                        key={activity}
-                        className="flex items-start space-x-2 p-1 hover:bg-gray-100 rounded cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.activity?.includes(activity) || false}
-                          onChange={() => handleActivityToggle(activity)}
-                          disabled={!formData.activity?.includes(activity) && (formData.activity?.length || 0) >= 3}
-                          className="rounded text-orange-500 focus:ring-orange-500 disabled:opacity-50 mt-0.5 flex-shrink-0"
-                        />
-                        <span className={`text-xs leading-tight ${!formData.activity?.includes(activity) && (formData.activity?.length || 0) >= 3 ? 'text-gray-400' : 'text-gray-700'}`}>
-                          {activity}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
+          {currentStep === 4 && (
+            <StepThree 
+              formData={formData} 
+              updateFormData={updateFormData} 
+            />
           )}
         </motion.div>
       </div>
 
+      {error && (
+        <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
+          {error}
+        </div>
+      )}
+
       <div className="flex justify-between mt-4">
         <button
           onClick={handlePrev}
-          disabled={currentStep === 1 || isLoading}
+          disabled={currentStep === 1}
           className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ArrowLeft className="w-4 h-4" />
           Back
         </button>
 
-        <button
-          onClick={handleNext}
-          disabled={!isStepValid() || isLoading}
-          className="flex items-center gap-2 px-5 py-2 text-sm bg-orange-500 hover:bg-orange-600 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isLoading ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Creating account...
-            </>
-          ) : currentStep === totalSteps ? (
-            <>
-              <Check className="w-4 h-4" />
-              Complete
-            </>
-          ) : (
-            <>
-              Continue
-              <ArrowRight className="w-4 h-4" />
-            </>
-          )}
-        </button>
-      </div>
-
-      <div className="text-center mt-2">
-        <p className="text-xs text-gray-500">
-          Already have an account?{' '}
-          <button 
-            onClick={() => window.location.href = '/signup/login'}
-            className="text-orange-500 hover:underline"
+        {currentStep !== 2 && (
+          <button
+            onClick={handleNext}
+            disabled={!isStepValid() || isLoading}
+            className="flex items-center gap-2 px-5 py-2 text-sm bg-orange-500 hover:bg-orange-600 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            Sign in
+            {isLoading ? (
+              'Processing...'
+            ) : currentStep === totalSteps ? (
+              <>
+                <Check className="w-4 h-4" />
+                Complete
+              </>
+            ) : (
+              <>
+                Continue
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </button>
-        </p>
+        )}
       </div>
     </div>
-  )
+  );
 }

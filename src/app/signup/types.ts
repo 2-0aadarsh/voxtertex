@@ -1,10 +1,13 @@
 export interface FormData {
-  fullName: string
+  firstName: string
+  lastName: string
   email: string
   password: string
+  confirmPassword: string
   whoAreYou: string
   companyTitle: string
   activity: string[]
+  isEmailVerified: boolean
 }
 
 export interface Slide {

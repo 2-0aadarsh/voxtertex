@@ -1,6 +1,12 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { BsGraphUpArrow } from "react-icons/bs";
 import { CiStar } from "react-icons/ci";
 import { FiPhone, FiMail, FiMapPin } from "react-icons/fi";
+import { useAuth, useProfile } from "@/store/hooks";
+import { useGetCurrentUserQuery } from "@/store/slices/authSlice";
+import { useGetProfileQuery } from "@/store/slices/profileSlice";
 
 import HeaderSection from "./HeaderSection";
 import InfoCard from "./InfoCard";
@@ -29,33 +35,162 @@ const EventIcon = (props) => (
 );
 
 const AboutUser = () => {
-  const userData = {
-    name: "John Doe",
-    role: "Event Manager",
-    description:
-      "Experienced product manager with a passion for creating innovative solutions. Skilled in team leadership, strategic planning, and agile methodologies that drive business growth.",
-    profilePic:
-      "https://images.unsplash.com/photo-1633332755192-727a05c4013d?fm=jpg&q=60&w=3000&ixlib=rb-4.1.0",
-    domains: [
-      "Artificial intelligence",
-      "Web Development",
-      "Cloud Computing",
-      "Cybersecurity",
-      "Blockchain",
-    ],
+  // Get user data from Redux store
+  const auth = useAuth();
+  const profile = useProfile();
 
-    stats: [
-      { icon: EventIcon, value: "12", label: "Events Organized" },
-      { icon: CiStar, value: "450", label: "Connections" },
-      { icon: EventIcon, value: "6+ Years", label: "Experience" },
-    ],
+  // Fetch current user data dynamically
+  const {
+    data: currentUserData,
+    isLoading: isUserLoading,
+    error: userError,
+    refetch: refetchUser,
+  } = useGetCurrentUserQuery();
 
-    contacts: [
-      { icon: FiPhone, label: "Contact Number", value: "+91-9836378237" },
-      { icon: FiMail, label: "Email Address", value: "peter.p@xyilker.com" },
-      { icon: FiMapPin, label: "Location", value: "Uttar Pradesh, India" },
-    ],
-  };
+  // Fetch profile data including yearsOfExperience
+  const {
+    data: profileData,
+    isLoading: isProfileLoading,
+    error: profileError,
+    refetch: refetchProfile,
+  } = useGetProfileQuery();
+
+  // State for processed user data
+  const [userData, setUserData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Process user data when it's available
+  useEffect(() => {
+    const processUserData = () => {
+      // Use current user data from API if available, otherwise fall back to auth store
+      const user = currentUserData?.user || auth.user?._doc || auth.user;
+
+      if (!user) {
+        setIsLoading(true);
+        return;
+      }
+
+      console.log("🔄 Processing user data:", user);
+
+      // Extract domains/expertise from user data
+      const domains =
+        user.areaOfExpertise ||
+        (user.roleSpecificData?.activities || []).slice(0, 5) ||
+        [];
+
+      // Prepare dynamic user data
+      const dynamicUserData = {
+        name:
+          user.firstName && user.lastName
+            ? `${user.firstName} ${user.lastName}`
+            : user.name || "User",
+        role:
+          user.professionalTitle ||
+          (user.role === "organizer"
+            ? "Event Organizer"
+            : user.role === "speaker"
+            ? "Speaker"
+            : user.role || "Professional"),
+        description: user.bio || user.about || "No description available",
+        profilePic:
+          user.profileImageUrl || user.profileImage?.url || "/profile.png",
+        domains: domains,
+        stats: [
+          {
+            icon: EventIcon,
+            value: profile.profile?.stats?.projects || "0",
+            label: "Events Organized",
+          },
+          {
+            icon: EventIcon,
+            value:
+              profileData?.data?.yearsOfExperience ||
+              user.yearsOfExperience ||
+              profile.profile?.yearsOfExperience ||
+              profile.profile?.stats?.experience ||
+              "0",
+            label: "Experience",
+          },
+        ],
+        contacts: [
+          {
+            icon: FiPhone,
+            label: "Contact Number",
+            value:
+              user.mobileNo ||
+              profile.profile?.contacts?.phone ||
+              "Not provided",
+          },
+          {
+            icon: FiMail,
+            label: "Email Address",
+            value:
+              user.email || profile.profile?.contacts?.email || "Not provided",
+          },
+          {
+            icon: FiMapPin,
+            label: "Location",
+            value:
+              user.location ||
+              profile.profile?.contacts?.address ||
+              "Not provided",
+          },
+        ],
+      };
+
+      setUserData(dynamicUserData);
+      setIsLoading(false);
+    };
+
+    processUserData();
+  }, [currentUserData, auth.user, profile.profile, profileData]);
+
+  // Refetch user data on component mount if not available
+  useEffect(() => {
+    if (!auth.user && !isUserLoading && !userError) {
+      refetchUser();
+    }
+  }, [auth.user, isUserLoading, userError, refetchUser]);
+
+  // Show loading state
+  if (isLoading || isUserLoading || isProfileLoading || !userData) {
+    return (
+      <div className="w-full max-w-[1154px] h-auto bg-[#FFFDFB] shadow-md rounded-lg mx-auto p-4 animate-pulse">
+        <div className="h-40 bg-gray-200 rounded mb-4"></div>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="h-20 bg-gray-200 rounded"></div>
+          <div className="h-20 bg-gray-200 rounded"></div>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="h-16 bg-gray-200 rounded"></div>
+          <div className="h-16 bg-gray-200 rounded"></div>
+          <div className="h-16 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (userError) {
+    return (
+      <div className="w-full max-w-[1154px] h-auto bg-[#FFFDFB] shadow-md rounded-lg mx-auto p-8">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">
+            Unable to load profile
+          </h3>
+          <p className="text-gray-500 mb-4">
+            There was an error loading your profile data.
+          </p>
+          <button
+            onClick={() => refetchUser()}
+            className="px-4 py-2 bg-[#FF6B35] text-white rounded-lg hover:bg-[#E55A2B] transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-[1154px] h-auto bg-[#FFFDFB] shadow-md rounded-lg mx-auto">
@@ -68,7 +203,7 @@ const AboutUser = () => {
       />
 
       {/* Info Cards */}
-      <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 p-4 lg:p-8">
+      <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-5 p-4 lg:p-8">
         {userData.stats.map((stat, idx) => (
           <InfoCard key={idx} {...stat} />
         ))}

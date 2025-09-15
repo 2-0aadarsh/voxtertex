@@ -1,64 +1,120 @@
-import { Router } from "express";
-import { signUp, signIn, checkAuthStatus, logOut, setExpertDetails, verifyEmail, setOrganizerDetails, testUser, setParticipantDetails } from "../controllers/authController.js";
-import passport from "passport";
-import { ensureAuthenticated } from "../middleware/ensureAuth.js";
-// import upload from "../middleware/upload.js";
+import express from 'express';
+import auth from '../middleware/auth.js';
+import { authenticateJWT } from '../middleware/jwtAuth.js';
+import { registerUser, loginUser, getCurrentUser, validateToken, refreshToken, logoutUser, updateBasicInfo, updateProfileImage, getEnhancedProfile } from '../controllers/enhancedAuthController.js';
+import multer from 'multer';
 
-const router = Router();
+const router = express.Router();
 
-router.post("/register", signUp);
-
-router.post("/login", (req, res, next) => {
-  console.log("Login Request Body:", req.body);
-  next();
-}, (req, res, next) => {
-  passport.authenticate("local", (err, user, info) => {
-    if (err) {
-      console.error('Passport authentication error:', err);
-      return res.status(500).json({ 
-        success: false,
-        message: "Internal server error during authentication" 
-      });
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Allow only images
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, JPG, and WebP images are allowed.'), false);
     }
-    
-    if (!user) {
-      console.log('Authentication failed:', info?.message || 'Unknown error');
-      return res.status(401).json({ 
-        success: false,
-        message: info?.message || "Invalid email or password. Please check your credentials and try again." 
-      });
-    }
-    
-    req.login(user, (err) => {
-      if (err) {
-        console.error('Login session error:', err);
-        return res.status(500).json({ 
-          success: false,
-          message: "Failed to create session. Please try again." 
-        });
-      }
-      
-      // Call the signIn controller
-      return signIn(req, res);
-    });
-  })(req, res, next);
+  }
 });
 
-router.get("/authStatus", checkAuthStatus);
+/**
+ * @route   GET /api/auth/current-user
+ * @desc    Get current user ID from token
+ * @access  Private
+ */
+router.get('/current-user', auth, async (req, res) => {
+  try {
+    // If we get here, auth middleware has already verified the token
+    // and attached the user ID to req.user
+    
+    // For development, if using the hardcoded user ID, return the real one
+    if (req.user._id === 'development-user-id') {
+      // Return a real user ID for development purposes
+      return res.status(200).json({ 
+        userId: '68b9b01bc8481ddc55fbd1f2', // Your actual user ID
+        message: 'Development user ID' 
+      });
+    }
+    
+    // Return the user ID from the token
+    return res.status(200).json({ 
+      userId: req.user._id,
+      message: 'User ID retrieved successfully' 
+    });
+  } catch (error) {
+    console.error('Error getting current user:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 
-router.post("/logout",ensureAuthenticated, logOut);
+/**
+ * @route   POST /api/auth/register
+ * @desc    Register a new user
+ * @access  Public
+ */
+router.post('/register', registerUser);
 
-// router.post("/register-expert", upload.single("organisationIdImage"), setExpertDetails);
-router.post("/register-expert", ensureAuthenticated, setExpertDetails);
+/**
+ * @route   POST /api/auth/login-jwt
+ * @desc    Login user with JWT
+ * @access  Public
+ */
+router.post('/login-jwt', loginUser);
 
-router.post("/register-organizer", ensureAuthenticated, setOrganizerDetails);
+/**
+ * @route   GET /api/auth/me
+ * @desc    Get current user profile
+ * @access  Private
+ */
+router.get('/me', authenticateJWT, getCurrentUser);
 
-router.post("/register-participant", ensureAuthenticated, setParticipantDetails);
+/**
+ * @route   GET /api/auth/validate
+ * @desc    Validate current token and get user info
+ * @access  Private
+ */
+router.get('/validate', authenticateJWT, validateToken);
 
-router.post("/verify-email", ensureAuthenticated, verifyEmail);
+/**
+ * @route   POST /api/auth/refresh-token
+ * @desc    Refresh access token
+ * @access  Private
+ */
+router.post('/refresh-token', refreshToken);
 
-//router.post("/resetPass");
+/**
+ * @route   POST /api/auth/logout-jwt
+ * @desc    Logout user
+ * @access  Private
+ */
+router.post('/logout-jwt', authenticateJWT, logoutUser);
 
-router.get("/test-user", testUser);
+/**
+ * @route   PUT /api/auth/profile/basic
+ * @desc    Update user basic information
+ * @access  Private
+ */
+router.put('/profile/basic', authenticateJWT, updateBasicInfo);
+
+/**
+ * @route   PUT /api/auth/profile/image
+ * @desc    Update user profile image
+ * @access  Private
+ */
+router.put('/profile/image', authenticateJWT, upload.single('image'), updateProfileImage);
+
+/**
+ * @route   GET /api/auth/profile/enhanced
+ * @desc    Get enhanced profile data including yearsOfExperience
+ * @access  Private
+ */
+router.get('/profile/enhanced', authenticateJWT, getEnhancedProfile);
 
 export default router;

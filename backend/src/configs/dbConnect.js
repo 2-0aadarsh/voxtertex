@@ -7,21 +7,18 @@ const dbConnect = async () => {
     const MONGO_URL = process.env.MONGO_URL;
 
     if (!MONGO_URL) {
-        console.error("❌ MONGO_URL is missing! Check your .env file.");
+        console.error("MONGO_URL is missing! Check your .env file.");
         process.exit(1);
     }
 
 
     try {
         console.log("MONGO_URL from .env:", process.env.MONGO_URL);
-        const mongoDbConnection = await mongoose.connect(MONGO_URL, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-        });
+        const mongoDbConnection = await mongoose.connect(MONGO_URL);
 
-        console.log(`✅ Database Connected Successfully: ${mongoDbConnection.connection.host}`);
+        console.log(`Database Connected Successfully: ${mongoDbConnection.connection.host}`);
     } catch (error) {
-        console.error(`❌ Database Connection Failed: ${error.message}`);
+        console.error(`Database Connection Failed: ${error.message}`);
         process.exit(1);
     }
 };

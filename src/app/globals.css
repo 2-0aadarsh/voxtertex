@@ -16,3 +16,39 @@
   }
 }
 
+/* hide scrollbar but keep scroll functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE & Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE & Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* More specific scrollbar hiding for custom components */
+.custom-vertical-scrollbar-container .overflow-y-auto::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari */
+}
+.custom-vertical-scrollbar-container .overflow-y-auto {
+  -ms-overflow-style: none !important; /* IE & Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+
+/* Force hide scrollbar in all browsers */
+.custom-vertical-scrollbar-container *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.custom-vertical-scrollbar-container * {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
