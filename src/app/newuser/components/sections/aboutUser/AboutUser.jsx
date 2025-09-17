@@ -92,8 +92,7 @@ const AboutUser = () => {
             ? "Speaker"
             : user.role || "Professional"),
         description: user.bio || user.about || "No description available",
-        profilePic:
-          user.profileImageUrl || user.profileImage?.url || "/profile.png",
+        profilePic: user.profileImageUrl || user.profileImage?.url || null,
         domains: domains,
         stats: [
           {

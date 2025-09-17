@@ -83,26 +83,47 @@ export default function LoginPage() {
     } catch (error: unknown) {
       console.error('❌ Login error:', error)
       
-      // Handle different types of errors
-      let errorMessage = 'Login failed. Please try again.';
+      // Handle different types of errors with user-friendly messages
+      let errorMessage = 'Something went wrong. Please try again.';
       
       if (error && typeof error === 'object') {
         const errorObj = error as Record<string, unknown>;
         if (errorObj?.data && typeof errorObj.data === 'object') {
           const data = errorObj.data as Record<string, unknown>;
           if (typeof data.message === 'string') {
-            errorMessage = data.message;
+            // Convert technical error messages to user-friendly ones
+            const message = data.message.toLowerCase();
+            if (message.includes('user not found') || message.includes('no user found')) {
+              errorMessage = 'No account found with this email.';
+            } else if (message.includes('invalid password') || message.includes('incorrect password') || message.includes('wrong password')) {
+              errorMessage = 'Incorrect password.';
+            } else if (message.includes('invalid credentials') || message.includes('authentication failed')) {
+              errorMessage = 'Incorrect email or password.';
+            } else if (message.includes('email')) {
+              errorMessage = 'Please enter a valid email address.';
+            } else {
+              errorMessage = 'Unable to sign you in. Please try again.';
+            }
           }
         } else if (typeof errorObj?.message === 'string') {
-          errorMessage = errorObj.message;
+          const message = errorObj.message.toLowerCase();
+          if (message.includes('user not found') || message.includes('no user found')) {
+            errorMessage = 'No account found with this email.';
+          } else if (message.includes('invalid password') || message.includes('incorrect password') || message.includes('wrong password')) {
+            errorMessage = 'Incorrect password.';
+          } else if (message.includes('invalid credentials') || message.includes('authentication failed')) {
+            errorMessage = 'Incorrect email or password.';
+          } else {
+            errorMessage = 'Unable to sign you in. Please try again.';
+          }
         } else if (errorObj?.status === 401) {
-          errorMessage = 'Invalid email or password. Please check your credentials.';
+          errorMessage = 'Incorrect email or password.';
         } else if (errorObj?.status === 404) {
-          errorMessage = 'Login service is currently unavailable. Please try again later.';
+          errorMessage = 'We\'re having trouble connecting right now. Please try again in a moment.';
         } else if (typeof errorObj?.status === 'number' && errorObj.status >= 500) {
-          errorMessage = 'Server error occurred. Please try again later.';
+          errorMessage = 'Our servers are temporarily unavailable. Please try again in a few minutes.';
         } else if (errorObj?.name === 'TypeError' && typeof errorObj?.message === 'string' && errorObj.message.includes('fetch')) {
-          errorMessage = 'Network error. Please check your connection and try again.';
+          errorMessage = 'Please check your internet connection and try again.';
         }
       }
       
@@ -138,7 +159,7 @@ export default function LoginPage() {
             </motion.div>
             <h1 className="text-3xl font-bold text-blue-900 mb-2">Welcome Back!</h1>
             <p className="text-gray-500 text-sm mb-6">{successMessage}</p>
-            <p className="text-gray-400 text-xs">Redirecting to your dashboard...</p>
+            <p className="text-gray-400 text-xs">Redirecting to your profile...</p>
           </div>
         </div>
       </div>
@@ -233,6 +254,7 @@ export default function LoginPage() {
             <div className="text-left">
               <button
                 type="button"
+                onClick={() => router.push('/forgot-password')}
                 className="text-xs text-gray-600 hover:text-gray-800 underline transition-colors"
               >
                 Forgot Password?

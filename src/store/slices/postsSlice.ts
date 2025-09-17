@@ -182,51 +182,6 @@ export const postsApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Post'],
     }),
-
-    // Create post with media (FormData)
-    createPostWithMedia: builder.mutation<ApiResponse<Post>, FormData>({
-      query: (formData) => ({
-        url: '/post/create-with-media',
-        method: 'POST',
-        body: formData,
-        // RTK Query will automatically detect FormData and set proper headers
-      }),
-      invalidatesTags: ['Post', 'FeedPost'],
-      // Custom query function to handle FormData properly
-      queryFn: async (formData, { signal }) => {
-        try {
-          const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-          const response = await fetch(`${baseUrl}/post/create-with-media`, {
-            method: 'POST',
-            body: formData,
-            credentials: 'include',
-            signal,
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Server error response:', errorText);
-            return {
-              error: {
-                status: response.status,
-                data: errorText,
-              },
-            };
-          }
-
-          const data = await response.json();
-          return { data };
-        } catch (error) {
-          console.error('Fetch error:', error);
-          return {
-            error: {
-              status: 'FETCH_ERROR',
-              error: error instanceof Error ? error.message : 'Unknown error',
-            },
-          };
-        }
-      },
-    }),
     
     // Update post
     updatePost: builder.mutation<
@@ -274,6 +229,20 @@ export const postsApi = baseApi.injectEndpoints({
         formData: true,
       }),
     }),
+    
+    // Create post with media
+    createPostWithMedia: builder.mutation<
+      ApiResponse<Post>,
+      FormData
+    >({
+      query: (formData) => ({
+        url: '/post/create-with-media',
+        method: 'POST',
+        body: formData,
+        formData: true,
+      }),
+      invalidatesTags: ['Post'],
+    }),
   }),
 });
 
@@ -300,11 +269,11 @@ export const {
   useGetPostsQuery,
   useGetPostQuery,
   useCreatePostMutation,
-  useCreatePostWithMediaMutation,
   useUpdatePostMutation,
   useDeletePostMutation,
   useTogglePostLikeMutation,
   useUploadPostMediaMutation,
+  useCreatePostWithMediaMutation,
 } = postsApi;
 
 // Selectors

@@ -8,12 +8,16 @@ import AddEducation from "./AddEducation";
 import {
   useGetEducationsQuery,
   useCreateEducationMutation,
+  useUpdateEducationMutation,
+  useDeleteEducationMutation,
   selectEducations,
 } from "../../../../../store/slices/educationSlice";
 import { useAppSelector } from "../../../../../store/hooks";
 
 const Education = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingEducation, setEditingEducation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [education, setEducation] = useState([]);
 
@@ -25,6 +29,10 @@ const Education = () => {
   } = useGetEducationsQuery();
   const [createEducation, { isLoading: isCreating }] =
     useCreateEducationMutation();
+  const [updateEducation, { isLoading: isUpdating }] =
+    useUpdateEducationMutation();
+  const [deleteEducation, { isLoading: isDeleting }] =
+    useDeleteEducationMutation();
 
   // Update local state when Redux data changes
   useEffect(() => {
@@ -47,6 +55,39 @@ const Education = () => {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingEducation(null);
+  };
+
+  const handleEditEducation = (educationId) => {
+    console.log("✏️ Edit education:", educationId);
+    // Find the education to edit
+    const educationToEdit = education.find((edu) => edu._id === educationId);
+    if (educationToEdit) {
+      console.log("📝 Education to edit:", educationToEdit);
+      setEditingEducation(educationToEdit);
+      setIsEditModalOpen(true);
+    }
+  };
+
+  const handleDeleteEducation = async (educationId) => {
+    console.log("🗑️ Delete education:", educationId);
+    try {
+      const result = await deleteEducation(educationId).unwrap();
+      if (result.success) {
+        // Remove from local state
+        setEducation((prev) => prev.filter((edu) => edu._id !== educationId));
+        toast.success("Education deleted successfully");
+      } else {
+        throw new Error(result.message || "Failed to delete education");
+      }
+    } catch (error) {
+      console.error("Error deleting education:", error);
+      throw error; // Re-throw to let the item component handle the error
+    }
   };
 
   const handleSaveEducation = async (educationData) => {
@@ -125,6 +166,60 @@ const Education = () => {
     }
   };
 
+  const handleUpdateEducation = async (educationData) => {
+    try {
+      setIsLoading(true);
+
+      // Format data for API
+      const formattedData = {
+        degree: educationData.degree,
+        institution: educationData.institution,
+        fieldOfStudy: educationData.fieldOfStudy,
+        startDate: new Date(
+          `${educationData.startYear}-${getMonthNumber(
+            educationData.startMonth
+          )}-01`
+        ).toISOString(),
+        endDate: educationData.isCurrentlyStudying
+          ? null
+          : new Date(
+              `${educationData.endYear}-${getMonthNumber(
+                educationData.endMonth
+              )}-01`
+            ).toISOString(),
+        isCurrentlyStudying: educationData.isCurrentlyStudying,
+        description: educationData.description || "",
+        grade: educationData.grade || "",
+      };
+
+      console.log(
+        "🔄 Updating education:",
+        editingEducation._id,
+        formattedData
+      );
+
+      // Call the API to update education
+      const result = await updateEducation({
+        id: editingEducation._id,
+        updates: formattedData,
+      }).unwrap();
+
+      if (result.success) {
+        // The Redux cache will automatically refetch and update the UI
+        toast.success("Education updated successfully!");
+        setIsEditModalOpen(false);
+        setEditingEducation(null);
+      } else {
+        toast.error(result.message || "Failed to update education");
+      }
+    } catch (error) {
+      console.error("Error updating education:", error);
+      toast.error(error.message || "Failed to update education");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Helper function to convert month name to number
   const getMonthNumber = (monthName) => {
     const months = {
@@ -193,6 +288,7 @@ const Education = () => {
               education.map((edu, index) => (
                 <EducationItem
                   key={edu._id || index}
+                  id={edu._id}
                   degree={edu.degree}
                   institution={edu.institution}
                   period={formatPeriod(
@@ -200,6 +296,8 @@ const Education = () => {
                     edu.endDate,
                     edu.isCurrentlyStudying
                   )}
+                  onEdit={handleEditEducation}
+                  onDelete={handleDeleteEducation}
                 />
               ))
             ) : (
@@ -212,12 +310,22 @@ const Education = () => {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Add Education Modal */}
       <AddEducation
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onSave={handleSaveEducation}
         isLoading={isLoading || isCreating}
+      />
+
+      {/* Edit Education Modal */}
+      <AddEducation
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
+        onSave={handleUpdateEducation}
+        isLoading={isLoading || isUpdating}
+        editingEducation={editingEducation}
+        isEditMode={true}
       />
     </>
   );

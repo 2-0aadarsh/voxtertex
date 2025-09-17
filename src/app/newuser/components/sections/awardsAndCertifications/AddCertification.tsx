@@ -3,14 +3,35 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
+interface AwardData {
+  _id: string;
+  title: string;
+  issuer: string;
+  description: string;
+  dateIssued: string;
+  credentialId: string;
+  credentialUrl: string;
+  type: string;
+  doesNotExpire: boolean;
+}
+
 interface AddCertificationProps {
   isOpen: boolean;
   onClose?: () => void;
   onSave?: (awardData: any) => void;
   isLoading?: boolean;
+  editingAward?: AwardData | null;
+  isEditMode?: boolean;
 }
 
-export default function AddCertification({ isOpen, onClose, onSave, isLoading = false }: AddCertificationProps) {
+export default function AddCertification({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  isLoading = false, 
+  editingAward = null, 
+  isEditMode = false 
+}: AddCertificationProps) {
   const [type, setType] = useState("");
   const [certificationName, setCertificationName] = useState("");
   const [issuingOrganization, setIssuingOrganization] = useState("");
@@ -83,6 +104,46 @@ export default function AddCertification({ isOpen, onClose, onSave, isLoading = 
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  // Populate form fields when editing
+  useEffect(() => {
+    if (isEditMode && editingAward && isOpen) {
+      console.log("📝 Populating form with award data:", editingAward);
+      
+      // Parse date
+      const dateIssued = new Date(editingAward.dateIssued);
+      
+      // Set form fields
+      setType(editingAward.type || "");
+      setCertificationName(editingAward.title || "");
+      setIssuingOrganization(editingAward.issuer || "");
+      setIssueMonth(dateIssued.toLocaleString('default', { month: 'long' }));
+      setIssueYear(dateIssued.getFullYear().toString());
+      setCredentialId(editingAward.credentialId || "");
+      setCredentialUrl(editingAward.credentialUrl || "");
+      setDescription(editingAward.description || "");
+      setDoesNotExpire(editingAward.doesNotExpire || false);
+      
+      // Reset expire date fields if does not expire
+      if (editingAward.doesNotExpire) {
+        setExpireMonth("");
+        setExpireYear("");
+      }
+    } else if (!isEditMode && isOpen) {
+      // Reset form when opening in add mode
+      setType("");
+      setCertificationName("");
+      setIssuingOrganization("");
+      setIssueMonth("");
+      setIssueYear("");
+      setExpireMonth("");
+      setExpireYear("");
+      setDoesNotExpire(false);
+      setCredentialId("");
+      setCredentialUrl("");
+      setDescription("");
+    }
+  }, [isEditMode, editingAward, isOpen]);
 
   const certificationTypes = [
     "Certification",
@@ -176,9 +237,14 @@ export default function AddCertification({ isOpen, onClose, onSave, isLoading = 
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-orange-500">Add Certification</h2>
+                  <h2 className="text-xl font-semibold text-orange-500">
+                    {isEditMode ? "Edit Award/Certification" : "Add Certification"}
+                  </h2>
                   <p className="text-gray-500 text-[11px] mt-1">
-                    Add a new certification to your profile.
+                    {isEditMode 
+                      ? "Update your award or certification information" 
+                      : "Add a new certification to your profile."
+                    }
                   </p>
                   <p className="text-[11px] text-gray-400 mt-2">* Indicates required</p>
                 </div>
@@ -614,7 +680,7 @@ export default function AddCertification({ isOpen, onClose, onSave, isLoading = 
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                     )}
-                    {isLoading ? 'Saving...' : 'Save'}
+                    {isLoading ? (isEditMode ? 'Updating...' : 'Saving...') : (isEditMode ? 'Update' : 'Save')}
                   </button>
                 </div>
               </div>

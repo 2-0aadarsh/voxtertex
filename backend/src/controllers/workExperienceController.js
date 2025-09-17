@@ -87,6 +87,10 @@ export const createWorkExperience = async (req, res) => {
     
     const newOrder = highestOrderExp ? highestOrderExp.order + 1 : 0;
     
+    // Convert date strings to Date objects if they exist
+    const processedStartDate = typeof startDate === 'string' ? new Date(startDate) : startDate;
+    const processedEndDate = endDate && typeof endDate === 'string' ? new Date(endDate) : endDate;
+    
     // Create new work experience
     const workExperience = new WorkExperience({
       user: req.user._id,
@@ -94,8 +98,8 @@ export const createWorkExperience = async (req, res) => {
       company,
       location,
       employmentType,
-      startDate,
-      endDate: isCurrentlyWorking ? null : endDate,
+      startDate: processedStartDate,
+      endDate: isCurrentlyWorking ? null : processedEndDate,
       isCurrentlyWorking,
       description,
       skills: skills || [],
@@ -146,6 +150,14 @@ export const updateWorkExperience = async (req, res) => {
     // Handle isCurrentlyWorking and endDate logic
     if (updates.isCurrentlyWorking === true) {
       updates.endDate = null;
+    }
+    
+    // Convert date strings to Date objects if they exist
+    if (updates.startDate && typeof updates.startDate === 'string') {
+      updates.startDate = new Date(updates.startDate);
+    }
+    if (updates.endDate && typeof updates.endDate === 'string') {
+      updates.endDate = new Date(updates.endDate);
     }
     
     // Update the work experience

@@ -146,10 +146,7 @@ export const workExperienceApi = baseApi.injectEndpoints({
         method: 'PATCH',
         body: updates,
       }),
-      invalidatesTags: (result, error, { id }) => [
-        { type: 'WorkExperience', id },
-        'Profile'
-      ],
+      invalidatesTags: ['WorkExperience', 'Profile'],
     }),
     
     // Delete work experience
@@ -158,10 +155,7 @@ export const workExperienceApi = baseApi.injectEndpoints({
         url: `/work-experience/${experienceId}`,
         method: 'DELETE',
       }),
-      invalidatesTags: (result, error, id) => [
-        { type: 'WorkExperience', id },
-        'Profile'
-      ],
+      invalidatesTags: ['WorkExperience', 'Profile'],
     }),
     
     // Reorder work experiences

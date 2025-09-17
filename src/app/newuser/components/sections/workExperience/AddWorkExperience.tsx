@@ -16,14 +16,35 @@ interface WorkData {
   description: string;
 }
 
+interface WorkExperienceData {
+  _id: string;
+  title: string;
+  company: string;
+  employmentType: string;
+  location: string;
+  startDate: string;
+  endDate?: string;
+  isCurrentlyWorking: boolean;
+  description: string;
+}
+
 interface AddWorkExperienceProps {
   isOpen: boolean;
   onClose?: () => void;
   onSave?: (workData: WorkData) => void;
   isLoading?: boolean;
+  editingWorkExperience?: WorkExperienceData | null;
+  isEditMode?: boolean;
 }
 
-export default function AddWorkExperience({ isOpen, onClose, onSave, isLoading = false }: AddWorkExperienceProps) {
+export default function AddWorkExperience({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  isLoading = false, 
+  editingWorkExperience = null, 
+  isEditMode = false 
+}: AddWorkExperienceProps) {
   const [jobTitle, setJobTitle] = useState("");
   const [company, setCompany] = useState("");
   const [employmentType, setEmploymentType] = useState("");
@@ -94,6 +115,32 @@ export default function AddWorkExperience({ isOpen, onClose, onSave, isLoading =
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  // Populate form fields when editing
+  useEffect(() => {
+    if (isEditMode && editingWorkExperience && isOpen) {
+      console.log("📝 Populating form with work experience data:", editingWorkExperience);
+      
+      // Parse dates
+      const startDate = new Date(editingWorkExperience.startDate);
+      const endDate = editingWorkExperience.endDate ? new Date(editingWorkExperience.endDate) : null;
+      
+      // Set form fields
+      setJobTitle(editingWorkExperience.title || "");
+      setCompany(editingWorkExperience.company || "");
+      setEmploymentType(editingWorkExperience.employmentType || "");
+      setLocation(editingWorkExperience.location || "");
+      setStartMonth(startDate.toLocaleString('default', { month: 'long' }));
+      setStartYear(startDate.getFullYear().toString());
+      setEndMonth(endDate ? endDate.toLocaleString('default', { month: 'long' }) : "");
+      setEndYear(endDate ? endDate.getFullYear().toString() : "");
+      setIsCurrentlyWorking(editingWorkExperience.isCurrentlyWorking || false);
+      setDescription(editingWorkExperience.description || "");
+    } else if (!isEditMode && isOpen) {
+      // Reset form when opening in add mode
+      resetForm();
+    }
+  }, [isEditMode, editingWorkExperience, isOpen]);
 
   const employmentTypes = [
     "Full-Time",
@@ -212,9 +259,14 @@ export default function AddWorkExperience({ isOpen, onClose, onSave, isLoading =
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-orange-500">Add Work Experience</h2>
+                  <h2 className="text-xl font-semibold text-orange-500">
+                    {isEditMode ? "Edit Work Experience" : "Add Work Experience"}
+                  </h2>
                   <p className="text-gray-500 text-[11px] mt-1">
-                    Add a new work experience to your profile
+                    {isEditMode 
+                      ? "Update your work experience information" 
+                      : "Add a new work experience to your profile"
+                    }
                   </p>
                   <p className="text-[11px] text-gray-400 mt-2">* Indicates required</p>
                 </div>
@@ -529,7 +581,7 @@ export default function AddWorkExperience({ isOpen, onClose, onSave, isLoading =
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                     )}
-                    {isLoading ? 'Saving...' : 'Save'}
+                    {isLoading ? (isEditMode ? 'Updating...' : 'Saving...') : (isEditMode ? 'Update' : 'Save')}
                   </button>
                 </div>
               </div>

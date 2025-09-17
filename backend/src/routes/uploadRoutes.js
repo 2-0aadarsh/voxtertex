@@ -110,33 +110,52 @@ router.post('/video', authenticateJWT, (req, res, next) => {
       // Try simple upload first
       let result;
       try {
-        result = await cloudinary.uploader.upload(req.file.path, {
-          resource_type: 'video',
-          folder: 'featuredVideos',
-          overwrite: true,
-          // Simple transformation for web compatibility
-          transformation: [
-            { quality: 'auto', fetch_format: 'auto' }
-          ],
-          eager: [
-            { 
-              format: 'mp4', 
-              transformation: [
-                { quality: 'auto', fetch_format: 'auto' }
-              ]
-            }
-          ],
-          eager_async: true, // Allow async processing
-          eager_notification_url: process.env.CLOUDINARY_NOTIFICATION_URL,
-          notification_url: process.env.CLOUDINARY_NOTIFICATION_URL
-        });
+        // For large files (>20MB), use basic upload without transformations
+        const fileSizeMB = req.file.size / (1024 * 1024);
+        console.log(`📊 File size: ${fileSizeMB.toFixed(2)}MB`);
+        
+        if (fileSizeMB > 20) {
+          console.log('📦 Large file detected, using basic upload without transformations...');
+          result = await cloudinary.uploader.upload(req.file.path, {
+            resource_type: 'video',
+            folder: 'featuredVideos',
+            overwrite: true,
+            // No transformations for large files to avoid timeouts
+            use_filename: true,
+            unique_filename: true
+          });
+        } else {
+          console.log('📦 Small file detected, using optimized upload with transformations...');
+          result = await cloudinary.uploader.upload(req.file.path, {
+            resource_type: 'video',
+            folder: 'featuredVideos',
+            overwrite: true,
+            // Simple transformation for web compatibility
+            transformation: [
+              { quality: 'auto', fetch_format: 'auto' }
+            ],
+            eager: [
+              { 
+                format: 'mp4', 
+                transformation: [
+                  { quality: 'auto', fetch_format: 'auto' }
+                ]
+              }
+            ],
+            eager_async: true, // Allow async processing
+            eager_notification_url: process.env.CLOUDINARY_NOTIFICATION_URL,
+            notification_url: process.env.CLOUDINARY_NOTIFICATION_URL
+          });
+        }
       } catch (transformationError) {
         console.log('⚠️ Transformation failed, trying basic upload...', transformationError.message);
         // Fallback to basic upload without transformations
         result = await cloudinary.uploader.upload(req.file.path, {
           resource_type: 'video',
           folder: 'featuredVideos',
-          overwrite: true
+          overwrite: true,
+          use_filename: true,
+          unique_filename: true
         });
       }
 
@@ -318,31 +337,50 @@ router.post('/video-with-thumbnail', authenticateJWT, (req, res, next) => {
       
       let result;
       try {
-        result = await cloudinary.uploader.upload(videoFile.path, {
-          resource_type: 'video',
-          folder: 'featuredVideos',
-          overwrite: true,
-          transformation: [
-            { quality: 'auto', fetch_format: 'auto' }
-          ],
-          eager: [
-            { 
-              format: 'mp4', 
-              transformation: [
-                { quality: 'auto', fetch_format: 'auto' }
-              ]
-            }
-          ],
-          eager_async: true,
-          eager_notification_url: process.env.CLOUDINARY_NOTIFICATION_URL,
-          notification_url: process.env.CLOUDINARY_NOTIFICATION_URL
-        });
+        // For large files (>20MB), use basic upload without transformations
+        const fileSizeMB = videoFile.size / (1024 * 1024);
+        console.log(`📊 File size: ${fileSizeMB.toFixed(2)}MB`);
+        
+        if (fileSizeMB > 20) {
+          console.log('📦 Large file detected, using basic upload without transformations...');
+          result = await cloudinary.uploader.upload(videoFile.path, {
+            resource_type: 'video',
+            folder: 'featuredVideos',
+            overwrite: true,
+            // No transformations for large files to avoid timeouts
+            use_filename: true,
+            unique_filename: true
+          });
+        } else {
+          console.log('📦 Small file detected, using optimized upload with transformations...');
+          result = await cloudinary.uploader.upload(videoFile.path, {
+            resource_type: 'video',
+            folder: 'featuredVideos',
+            overwrite: true,
+            transformation: [
+              { quality: 'auto', fetch_format: 'auto' }
+            ],
+            eager: [
+              { 
+                format: 'mp4', 
+                transformation: [
+                  { quality: 'auto', fetch_format: 'auto' }
+                ]
+              }
+            ],
+            eager_async: true,
+            eager_notification_url: process.env.CLOUDINARY_NOTIFICATION_URL,
+            notification_url: process.env.CLOUDINARY_NOTIFICATION_URL
+          });
+        }
       } catch (transformationError) {
         console.log('⚠️ Video transformation failed, trying basic upload...', transformationError.message);
         result = await cloudinary.uploader.upload(videoFile.path, {
           resource_type: 'video',
           folder: 'featuredVideos',
-          overwrite: true
+          overwrite: true,
+          use_filename: true,
+          unique_filename: true
         });
       }
 

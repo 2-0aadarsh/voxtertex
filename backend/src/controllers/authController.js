@@ -1,8 +1,6 @@
 import bcrypt from "bcryptjs";
 import User from "../models/user.js";
 import UserRole from "../models/userRole.js";
-import crypto from "crypto";
-import nodemailer from "nodemailer";
 import Profile from "../models/profile.js";
 
 const updateProfile = async (userId) => {
@@ -53,7 +51,7 @@ const isPasswordValid = (password) => {
            /[!@#$%^&*(),.?":{}|<>]/.test(password);
 };
 
-export const signUp = async (req, res, next) => {
+export const signUp = async (req, res) => {
     try {
         const { firstName, lastName, email, phone, password } = req.body;
         
@@ -136,7 +134,7 @@ export const logOut = async (req, res) => {
 };
 
 
-export const forgetPass = async (req, res) => {
+export const forgetPass = async () => {
     //logic here
 };
 
@@ -456,3 +454,4 @@ export const testUser = async (req, res) => {
     const user = await User.findOne({ email: "ronish.sheoran@voxvertexsoultions.com" });
     res.json(user ?? { messsage: "User not found" });
 }
+   

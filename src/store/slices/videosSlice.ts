@@ -115,7 +115,7 @@ export const videosApi = baseApi.injectEndpoints({
     }),
     
     getVideo: builder.query<ApiResponse<FeaturedVideo>, string>({
-      query: (videoId) => `/videos/${videoId}`,
+      query: (videoId) => `/featured-videos/${videoId}`,
       providesTags: (result, error, id) => [{ type: 'Video', id }],
     }),
     
@@ -133,19 +133,19 @@ export const videosApi = baseApi.injectEndpoints({
       { id: string; updates: Partial<CreateVideoRequest> }
     >({
       query: ({ id, updates }) => ({
-        url: `/videos/${id}`,
-        method: 'PATCH',
+        url: `/featured-videos/${id}`,
+        method: 'PUT',
         body: updates,
       }),
-      invalidatesTags: (result, error, { id }) => [{ type: 'Video', id }, 'Profile'],
+      invalidatesTags: ['Video', 'Profile'],
     }),
     
     deleteVideo: builder.mutation<ApiResponse, string>({
       query: (videoId) => ({
-        url: `/videos/${videoId}`,
+        url: `/featured-videos/${videoId}`,
         method: 'DELETE',
       }),
-      invalidatesTags: (result, error, id) => [{ type: 'Video', id }, 'Profile'],
+      invalidatesTags: ['Video', 'Profile'],
     }),
     
     reorderVideos: builder.mutation<
@@ -153,7 +153,7 @@ export const videosApi = baseApi.injectEndpoints({
       { id: string; newOrder: number }[]
     >({
       query: (orderData) => ({
-        url: '/videos/reorder',
+        url: '/featured-videos/reorder',
         method: 'PATCH',
         body: { videos: orderData },
       }),
@@ -165,7 +165,7 @@ export const videosApi = baseApi.injectEndpoints({
       string
     >({
       query: (videoId) => ({
-        url: `/videos/${videoId}/view`,
+        url: `/featured-videos/${videoId}/view`,
         method: 'POST',
       }),
       invalidatesTags: (result, error, id) => [{ type: 'Video', id }],
@@ -176,7 +176,7 @@ export const videosApi = baseApi.injectEndpoints({
       FormData
     >({
       query: (formData) => ({
-        url: '/videos/upload',
+        url: '/featured-videos/upload',
         method: 'POST',
         body: formData,
         formData: true,

@@ -128,7 +128,7 @@ export const awardsApi = baseApi.injectEndpoints({
         method: 'PATCH',
         body: updates,
       }),
-      invalidatesTags: (result, error, { id }) => [{ type: 'Award', id }, 'Profile'],
+      invalidatesTags: ['Award', 'Profile'],
     }),
     
     deleteAward: builder.mutation<ApiResponse, string>({
@@ -136,7 +136,7 @@ export const awardsApi = baseApi.injectEndpoints({
         url: `/awards/${awardId}`,
         method: 'DELETE',
       }),
-      invalidatesTags: (result, error, id) => [{ type: 'Award', id }, 'Profile'],
+      invalidatesTags: ['Award', 'Profile'],
     }),
     
     verifyCredential: builder.mutation<

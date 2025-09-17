@@ -8,12 +8,16 @@ import AwardItem from "./AwardItem";
 import {
   useGetAwardsQuery,
   useCreateAwardMutation,
+  useUpdateAwardMutation,
+  useDeleteAwardMutation,
   selectAwards,
 } from "../../../../../store/slices/awardsSlice";
 import { useAppSelector } from "../../../../../store/hooks";
 
 const AwardsAndCertifications = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingAward, setEditingAward] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [awards, setAwards] = useState([]);
 
@@ -24,6 +28,8 @@ const AwardsAndCertifications = () => {
     error: awardsError,
   } = useGetAwardsQuery({});
   const [createAward, { isLoading: isCreating }] = useCreateAwardMutation();
+  const [updateAward, { isLoading: isUpdating }] = useUpdateAwardMutation();
+  const [deleteAward, { isLoading: isDeleting }] = useDeleteAwardMutation();
 
   // We're using local state instead of Redux store directly
 
@@ -48,6 +54,39 @@ const AwardsAndCertifications = () => {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingAward(null);
+  };
+
+  const handleEditAward = (awardId) => {
+    console.log("✏️ Edit award:", awardId);
+    // Find the award to edit
+    const awardToEdit = awards.find((award) => award._id === awardId);
+    if (awardToEdit) {
+      console.log("📝 Award to edit:", awardToEdit);
+      setEditingAward(awardToEdit);
+      setIsEditModalOpen(true);
+    }
+  };
+
+  const handleDeleteAward = async (awardId) => {
+    console.log("🗑️ Delete award:", awardId);
+    try {
+      const result = await deleteAward(awardId).unwrap();
+      if (result.success) {
+        // Remove from local state
+        setAwards((prev) => prev.filter((award) => award._id !== awardId));
+        toast.success("Award deleted successfully");
+      } else {
+        throw new Error(result.message || "Failed to delete award");
+      }
+    } catch (error) {
+      console.error("Error deleting award:", error);
+      throw error; // Re-throw to let the item component handle the error
+    }
   };
 
   const handleSaveAward = async (awardData) => {
@@ -124,6 +163,48 @@ const AwardsAndCertifications = () => {
     }
   };
 
+  const handleUpdateAward = async (awardData) => {
+    try {
+      setIsLoading(true);
+
+      // Format data for API
+      const formattedData = {
+        title: awardData.title,
+        issuer: awardData.issuer,
+        description: awardData.description || "",
+        dateIssued: new Date(
+          `${awardData.year}-${getMonthNumber(awardData.month)}-01`
+        ).toISOString(),
+        credentialId: awardData.credentialId || "",
+        credentialUrl: awardData.credentialUrl || "",
+        type: awardData.type || "certification",
+        doesNotExpire: awardData.doesNotExpire,
+      };
+
+      console.log("🔄 Updating award:", editingAward._id, formattedData);
+
+      // Call the API to update award
+      const result = await updateAward({
+        id: editingAward._id,
+        updates: formattedData,
+      }).unwrap();
+
+      if (result.success) {
+        // The Redux cache will automatically refetch and update the UI
+        toast.success("Award updated successfully!");
+        setIsEditModalOpen(false);
+        setEditingAward(null);
+      } else {
+        toast.error(result.message || "Failed to update award");
+      }
+    } catch (error) {
+      console.error("Error updating award:", error);
+      toast.error(error.message || "Failed to update award");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Helper function to convert month name to number
   const getMonthNumber = (monthName) => {
     const months = {
@@ -180,9 +261,12 @@ const AwardsAndCertifications = () => {
               awards.map((award, index) => (
                 <AwardItem
                   key={award._id || index}
+                  id={award._id}
                   title={award.title}
                   description={award.description}
                   period={formatPeriod(award.dateIssued)}
+                  onEdit={handleEditAward}
+                  onDelete={handleDeleteAward}
                 />
               ))
             ) : (
@@ -198,12 +282,22 @@ const AwardsAndCertifications = () => {
         </div>
       </section>
 
-      {/* Modal */}
+      {/* Add Award Modal */}
       <AddCertification
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onSave={handleSaveAward}
         isLoading={isLoading || isCreating}
+      />
+
+      {/* Edit Award Modal */}
+      <AddCertification
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
+        onSave={handleUpdateAward}
+        isLoading={isLoading || isUpdating}
+        editingAward={editingAward}
+        isEditMode={true}
       />
     </>
   );

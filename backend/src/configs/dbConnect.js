@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const dbConnect = async () => {
-    const MONGO_URL = process.env.MONGO_URL;
+    const MONGO_URL = process.env.MONGODB_URI;
 
     if (!MONGO_URL) {
         console.error("MONGO_URL is missing! Check your .env file.");

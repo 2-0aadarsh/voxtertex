@@ -526,11 +526,56 @@ const MediaGallery = ({ media }) => {
 };
 
 // Post menu component
-const PostMenu = ({ postId, onDelete }) => {
+const PostMenu = ({ postId, post, onDelete, onEdit }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(
+    post?.caption || post?.content || ""
+  );
 
   const toggleMenu = () => setIsOpen(!isOpen);
+
+  const handleEdit = async () => {
+    if (isEditing) return;
+
+    try {
+      setIsEditing(true);
+
+      // Call API to update post using the correct enhanced-posts endpoint
+      const apiUrl = `${
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
+      }/enhanced-posts/${postId}`;
+      const response = await fetch(apiUrl, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          caption: editContent,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update post");
+      }
+
+      const result = await response.json();
+
+      // Close menu and notify parent with updated post
+      setIsOpen(false);
+      setIsEditing(false);
+      onEdit(postId, result.post);
+      toast.success("Post updated successfully");
+    } catch (error) {
+      console.error("Error updating post:", error);
+      toast.error(error.message || "Failed to update post");
+    } finally {
+      setIsEditing(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (isDeleting) return;
@@ -538,10 +583,10 @@ const PostMenu = ({ postId, onDelete }) => {
     try {
       setIsDeleting(true);
 
-      // Call API to delete post
+      // Call API to delete post using the correct enhanced-posts endpoint
       const apiUrl = `${
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
-      }/post/${postId}`;
+      }/enhanced-posts/${postId}`;
       const response = await fetch(apiUrl, {
         method: "DELETE",
         credentials: "include",
@@ -583,18 +628,17 @@ const PostMenu = ({ postId, onDelete }) => {
         <div className="absolute right-0 mt-1 w-36 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
           <div className="py-1" role="menu" aria-orientation="vertical">
             <button
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              className="flex items-center w-full px-4 py-2 text-sm text-orange-600 hover:bg-orange-50"
               role="menuitem"
               onClick={() => {
                 setIsOpen(false);
-                // Edit functionality can be added later
-                toast.info("Edit feature coming soon");
+                setIsEditing(true);
               }}
             >
               <FiEdit className="mr-2" /> Edit
             </button>
             <button
-              className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+              className="flex items-center w-full px-4 py-2 text-sm text-orange-600 hover:bg-orange-50"
               role="menuitem"
               onClick={handleDelete}
               disabled={isDeleting}
@@ -605,17 +649,58 @@ const PostMenu = ({ postId, onDelete }) => {
           </div>
         </div>
       )}
+
+      {/* Edit Modal */}
+      {isEditing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Edit Post
+            </h3>
+            <textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              placeholder="What's on your mind?"
+            />
+            <div className="flex justify-end space-x-3 mt-4">
+              <button
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditContent(post?.caption || post?.content || "");
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEdit}
+                disabled={isEditing || !editContent.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                {isEditing ? "Updating..." : "Update"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-const RecentPosts = ({ recentPosts, onPostDelete }) => {
+const RecentPosts = ({ recentPosts, onPostDelete, onPostEdit }) => {
   // Limit to showing only the 3 most recent posts
   const displayPosts = recentPosts.slice(0, 3);
 
   const handlePostDelete = (postId) => {
     if (onPostDelete) {
       onPostDelete(postId);
+    }
+  };
+
+  const handlePostEdit = (postId, updatedPost) => {
+    if (onPostEdit) {
+      onPostEdit(postId, updatedPost);
     }
   };
 
@@ -626,33 +711,6 @@ const RecentPosts = ({ recentPosts, onPostDelete }) => {
         <h3 className="text-black font-medium text-lg">Recent Posts</h3>
 
         <div className="flex items-center space-x-4">
-          <button
-            onClick={() => {
-              console.log("🔍 DEBUG: All recent posts:", recentPosts);
-              recentPosts.forEach((post, idx) => {
-                console.log(`Post ${idx}:`, {
-                  id: post._id,
-                  caption: post.caption,
-                  media: post.media,
-                  mediaCount: post.media?.length || 0,
-                });
-                if (post.media) {
-                  post.media.forEach((media, mediaIdx) => {
-                    console.log(`  Media ${mediaIdx}:`, {
-                      type: media.type,
-                      url: media.url,
-                      filename: media.filename,
-                      isPdf: media.url?.toLowerCase().includes(".pdf"),
-                    });
-                  });
-                }
-              });
-            }}
-            className="text-green-500 hover:text-green-700 text-xs px-2 py-1 border border-green-300 rounded"
-            title="Debug Posts"
-          >
-            Debug
-          </button>
           <motion.button
             whileHover={{ scale: 1.05, color: "#FF6B35" }}
             whileTap={{ scale: 0.95 }}
@@ -698,7 +756,12 @@ const RecentPosts = ({ recentPosts, onPostDelete }) => {
                   </span>
                 </div>
 
-                <PostMenu postId={post._id} onDelete={handlePostDelete} />
+                <PostMenu
+                  postId={post._id}
+                  post={post}
+                  onDelete={handlePostDelete}
+                  onEdit={handlePostEdit}
+                />
               </div>
             </motion.div>
           ))

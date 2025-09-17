@@ -123,11 +123,39 @@ const Post = () => {
     setRecentPosts((prev) => prev.filter((post) => post._id !== postId));
   };
 
+  const handlePostEdit = (postId, updatedPost) => {
+    console.log(
+      "✏️ Editing post with ID:",
+      postId,
+      "Updated post:",
+      updatedPost
+    );
+    // Update the post in state
+    setRecentPosts((prev) =>
+      prev.map((post) =>
+        post._id === postId
+          ? {
+              ...post,
+              caption: updatedPost.caption,
+              content: updatedPost.caption, // Keep both for compatibility
+              date: new Date(
+                updatedPost.updatedAt || updatedPost.createdAt
+              ).toLocaleString(),
+            }
+          : post
+      )
+    );
+  };
+
   return (
     <section className="w-[1154px] bg-[#ffffff] pb-4 shadow-md rounded-lg">
       <PostHeader recentPosts={recentPosts} />
       <GeneratePost onPost={handleNewPost} />
-      <RecentPosts recentPosts={recentPosts} onPostDelete={handlePostDelete} />
+      <RecentPosts
+        recentPosts={recentPosts}
+        onPostDelete={handlePostDelete}
+        onPostEdit={handlePostEdit}
+      />
     </section>
   );
 };

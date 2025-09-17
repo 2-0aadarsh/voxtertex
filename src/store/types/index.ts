@@ -46,6 +46,7 @@ export interface User {
   professionalTitle?: string;
   location?: string;
   areaOfExpertise?: string[];
+  yearsOfExperience?: number;
   profile?: {
     id: string;
     isComplete: boolean;
@@ -85,6 +86,7 @@ export interface User {
     professionalTitle?: string;
     location?: string;
     areaOfExpertise?: string[];
+    yearsOfExperience?: number;
     roleSpecificData?: {
       workEmail?: string;
       industry?: string;

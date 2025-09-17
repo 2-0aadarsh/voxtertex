@@ -61,6 +61,12 @@ const enhancedUserSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+  yearsOfExperience: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 50
+  },
   
   // Role Information
   role: {

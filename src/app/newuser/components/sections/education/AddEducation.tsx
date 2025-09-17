@@ -3,14 +3,35 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
+interface EducationData {
+  _id: string;
+  degree: string;
+  institution: string;
+  fieldOfStudy: string;
+  startDate: string;
+  endDate?: string;
+  isCurrentlyStudying: boolean;
+  description: string;
+  grade: string;
+}
+
 interface AddEducationProps {
   isOpen: boolean;
   onClose?: () => void;
   onSave?: (educationData: any) => void;
   isLoading?: boolean;
+  editingEducation?: EducationData | null;
+  isEditMode?: boolean;
 }
 
-export default function AddEducation({ isOpen, onClose, onSave, isLoading = false }: AddEducationProps) {
+export default function AddEducation({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  isLoading = false, 
+  editingEducation = null, 
+  isEditMode = false 
+}: AddEducationProps) {
   const [school, setSchool] = useState("");
   const [degree, setDegree] = useState("");
   const [fieldOfStudy, setFieldOfStudy] = useState("");
@@ -83,6 +104,41 @@ export default function AddEducation({ isOpen, onClose, onSave, isLoading = fals
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  // Populate form fields when editing
+  useEffect(() => {
+    if (isEditMode && editingEducation && isOpen) {
+      console.log("📝 Populating form with education data:", editingEducation);
+      
+      // Parse dates
+      const startDate = new Date(editingEducation.startDate);
+      const endDate = editingEducation.endDate ? new Date(editingEducation.endDate) : null;
+      
+      // Set form fields
+      setSchool(editingEducation.institution || "");
+      setDegree(editingEducation.degree || "");
+      setFieldOfStudy(editingEducation.fieldOfStudy || "");
+      setStartMonth(startDate.toLocaleString('default', { month: 'long' }));
+      setStartYear(startDate.getFullYear().toString());
+      setEndMonth(endDate ? endDate.toLocaleString('default', { month: 'long' }) : "");
+      setEndYear(endDate ? endDate.getFullYear().toString() : "");
+      setIsCurrentlyStudying(editingEducation.isCurrentlyStudying || false);
+      setGrade(editingEducation.grade || "");
+      setDescription(editingEducation.description || "");
+    } else if (!isEditMode && isOpen) {
+      // Reset form when opening in add mode
+      setSchool("");
+      setDegree("");
+      setFieldOfStudy("");
+      setStartMonth("");
+      setStartYear("");
+      setEndMonth("");
+      setEndYear("");
+      setIsCurrentlyStudying(false);
+      setGrade("");
+      setDescription("");
+    }
+  }, [isEditMode, editingEducation, isOpen]);
 
   const degreeTypes = [
     "High School Diploma",
@@ -183,9 +239,14 @@ export default function AddEducation({ isOpen, onClose, onSave, isLoading = fals
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-orange-500">Add Education</h2>
+                  <h2 className="text-xl font-semibold text-orange-500">
+                    {isEditMode ? "Edit Education" : "Add Education"}
+                  </h2>
                   <p className="text-gray-500 text-[11px] mt-1">
-                    Add educational background to your profile.
+                    {isEditMode 
+                      ? "Update your educational background information" 
+                      : "Add educational background to your profile."
+                    }
                   </p>
                   <p className="text-[11px] text-gray-400 mt-2">* Indicates required</p>
                 </div>
@@ -621,7 +682,7 @@ export default function AddEducation({ isOpen, onClose, onSave, isLoading = fals
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                     )}
-                    {isLoading ? 'Saving...' : 'Save'}
+                    {isLoading ? (isEditMode ? 'Updating...' : 'Saving...') : (isEditMode ? 'Update' : 'Save')}
                   </button>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import "dotenv/config"
 
 import transporter from '../configs/nodemailer.config.js';
-import { contactUsEmailTemplate, emailTemplate, passwordResetEmailTemplate } from '../utils/emails/emailTemplate.js';
+import { contactUsEmailTemplate, emailTemplate, passwordResetEmailTemplate, passwordResetLinkTemplate, passwordResetOTPTemplate, passwordChangedTemplate } from '../utils/emails/emailTemplate.js';
 
 const sendEmailVerification = async (to, subject, htmlContent) => {
   try {
@@ -55,7 +55,7 @@ const sendForgetPassword = async(to, subject, emailContent) => {
 
 const sendContactUsMail = async (userData) => {
   try {
-    const { name, email, subject, message } = userData;
+    const { name, email, message } = userData;
 
     // Generate HTML template
     const emailHtml = contactUsEmailTemplate(name, email, message);
@@ -78,4 +78,62 @@ const sendContactUsMail = async (userData) => {
   }
 };
 
-export { sendEmailVerification,sendForgetPassword, sendContactUsMail };
+const sendPasswordResetOTP = async (to, subject, emailContent) => {
+  try {
+    console.log('📧 Sending password reset email to:', to);
+    
+    // Check if it's a reset link or OTP
+    let emailHtml;
+    if (emailContent.resetLink) {
+      // Use reset link template
+      emailHtml = passwordResetLinkTemplate(emailContent.resetLink)
+        .replaceAll('[User]', emailContent.username)
+        .replaceAll('[Your App Name]', emailContent.appName);
+    } else {
+      // Use OTP template
+      emailHtml = passwordResetOTPTemplate(emailContent.otp)
+        .replaceAll('[User]', emailContent.username)
+        .replaceAll('[Your App Name]', emailContent.appName);
+    }
+
+    const mailOptions = {
+      from: 'VoxVertex <noreply@voxvertex.com>',
+      to,
+      subject,
+      html: emailHtml,
+    };
+
+    console.log('📤 Mail options prepared:', { to, subject, from: mailOptions.from });
+    
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Password reset email sent successfully:', info.messageId);
+    return info;
+  } catch (error) {
+    console.error('❌ Error sending password reset email:', error);
+    throw error;
+  }
+};
+
+const sendPasswordChangedConfirmation = async (to, subject, emailContent) => {
+  try {
+    // Generate HTML using template
+    const emailHtml = passwordChangedTemplate()
+      .replaceAll('[User]', emailContent.username)
+      .replaceAll('[Date]', emailContent.date);
+
+    const mailOptions = {
+      from: 'VoxVertex <noreply@voxvertex.com>',
+      to,
+      subject,
+      html: emailHtml,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return info;
+  } catch (error) {
+    console.error('Error sending password changed confirmation email:', error);
+    throw error;
+  }
+};
+
+export { sendEmailVerification, sendForgetPassword, sendContactUsMail, sendPasswordResetOTP, sendPasswordChangedConfirmation };

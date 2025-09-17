@@ -119,7 +119,7 @@ export const educationApi = baseApi.injectEndpoints({
         method: 'PATCH',
         body: updates,
       }),
-      invalidatesTags: (result, error, { id }) => [{ type: 'Education', id }, 'Profile'],
+      invalidatesTags: ['Education', 'Profile'],
     }),
     
     deleteEducation: builder.mutation<ApiResponse, string>({
@@ -127,7 +127,7 @@ export const educationApi = baseApi.injectEndpoints({
         url: `/education/${educationId}`,
         method: 'DELETE',
       }),
-      invalidatesTags: (result, error, id) => [{ type: 'Education', id }, 'Profile'],
+      invalidatesTags: ['Education', 'Profile'],
     }),
   }),
 });

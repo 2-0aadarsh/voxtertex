@@ -14,21 +14,9 @@ const HeaderSection = ({ name, role, description, domains, profilePic }) => {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [fallbackImage, setFallbackImage] = useState("");
   const fileInputRef = useRef(null);
   const auth = useAuth();
   const dispatch = useAppDispatch();
-
-  // Get profile image from localStorage on component mount
-  useEffect(() => {
-    // Use this in client components only
-    if (typeof window !== "undefined") {
-      const savedImage = localStorage.getItem("userProfileImage");
-      if (savedImage) {
-        setFallbackImage(savedImage);
-      }
-    }
-  }, []);
 
   const visibleDomains = domains.slice(0, 3);
   const remainingCount = domains.length - visibleDomains.length;
@@ -125,11 +113,6 @@ const HeaderSection = ({ name, role, description, domains, profilePic }) => {
         // Update Redux store with new user data
         dispatch(updateUser(updatedUser));
         toast.success("Profile picture updated successfully!");
-
-        // Store profile image URL in localStorage as backup
-        if (updatedUser.profileImageUrl) {
-          localStorage.setItem("userProfileImage", updatedUser.profileImageUrl);
-        }
       }
     } catch (error) {
       console.error("Error uploading image:", error);
@@ -156,21 +139,35 @@ const HeaderSection = ({ name, role, description, domains, profilePic }) => {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="w-[128px] h-[138px] bg-white rounded-lg p-[5px] relative"
         >
-          <img
-            src={auth.user?.profileImageUrl || fallbackImage || profilePic}
-            className="w-full h-full object-cover object-center rounded-lg"
-            alt="Profile"
-            onError={(e) => {
-              console.error("Profile image failed to load");
-              // Try fallback image from localStorage if available
-              if (fallbackImage && e.target.src !== fallbackImage) {
-                e.target.src = fallbackImage;
-              } else if (e.target.src !== profilePic) {
-                // Otherwise use default profile pic
-                e.target.src = profilePic;
-              }
+          {/* Check if user has a profile image */}
+          {auth.user?.profileImageUrl ? (
+            <img
+              src={auth.user.profileImageUrl}
+              className="w-full h-full object-cover object-center rounded-lg"
+              alt="Profile"
+              onError={(e) => {
+                console.error("Profile image failed to load");
+                // Hide the image and show avatar instead
+                e.currentTarget.style.display = "none";
+                e.currentTarget.nextElementSibling.style.display = "flex";
+              }}
+            />
+          ) : null}
+
+          {/* Avatar with initials - shown when no profile image */}
+          <div
+            className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-4xl rounded-lg"
+            style={{
+              display: auth.user?.profileImageUrl ? "none" : "flex",
             }}
-          />
+          >
+            {name
+              .split(" ")
+              .map((n) => n[0])
+              .join("")
+              .toUpperCase()
+              .slice(0, 2)}
+          </div>
           {/* Hidden file input */}
           <input
             type="file"

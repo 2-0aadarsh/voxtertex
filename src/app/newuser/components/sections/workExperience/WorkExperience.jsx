@@ -9,12 +9,16 @@ import AddWorkExperience from "./AddWorkExperience";
 import {
   useGetWorkExperiencesQuery,
   useCreateWorkExperienceMutation,
+  useUpdateWorkExperienceMutation,
+  useDeleteWorkExperienceMutation,
   selectWorkExperiences,
 } from "../../../../../store/slices/workExperienceSlice";
 import { useAppSelector } from "../../../../../store/hooks";
 
 const WorkExperience = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingWorkExperience, setEditingWorkExperience] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [workExperience, setWorkExperience] = useState([]);
 
@@ -26,6 +30,10 @@ const WorkExperience = () => {
   } = useGetWorkExperiencesQuery();
   const [createWorkExperience, { isLoading: isCreating }] =
     useCreateWorkExperienceMutation();
+  const [updateWorkExperience, { isLoading: isUpdating }] =
+    useUpdateWorkExperienceMutation();
+  const [deleteWorkExperience, { isLoading: isDeleting }] =
+    useDeleteWorkExperienceMutation();
 
   // Update local state when Redux data changes
   useEffect(() => {
@@ -52,6 +60,43 @@ const WorkExperience = () => {
     setIsAddModalOpen(false);
   };
 
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingWorkExperience(null);
+  };
+
+  const handleEditWorkExperience = (experienceId) => {
+    console.log("✏️ Edit work experience:", experienceId);
+    // Find the work experience to edit
+    const experienceToEdit = workExperience.find(
+      (exp) => exp._id === experienceId
+    );
+    if (experienceToEdit) {
+      console.log("📝 Work experience to edit:", experienceToEdit);
+      setEditingWorkExperience(experienceToEdit);
+      setIsEditModalOpen(true);
+    }
+  };
+
+  const handleDeleteWorkExperience = async (experienceId) => {
+    console.log("🗑️ Delete work experience:", experienceId);
+    try {
+      const result = await deleteWorkExperience(experienceId).unwrap();
+      if (result.success) {
+        // Remove from local state
+        setWorkExperience((prev) =>
+          prev.filter((exp) => exp._id !== experienceId)
+        );
+        toast.success("Work experience deleted successfully");
+      } else {
+        throw new Error(result.message || "Failed to delete work experience");
+      }
+    } catch (error) {
+      console.error("Error deleting work experience:", error);
+      throw error; // Re-throw to let the item component handle the error
+    }
+  };
+
   const handleSaveWorkExperience = async (workData) => {
     try {
       setIsLoading(true);
@@ -62,14 +107,17 @@ const WorkExperience = () => {
         company: workData.company,
         employmentType: workData.employmentType,
         location: workData.location,
-        startDate: `${workData.startYear}-${getMonthNumber(
-          workData.startMonth
-        )}-01`,
+        startDate: new Date(
+          `${workData.startYear}-${getMonthNumber(workData.startMonth)}-01`
+        ).toISOString(),
         endDate: workData.isCurrentlyWorking
           ? null
-          : `${workData.endYear}-${getMonthNumber(workData.endMonth)}-01`,
+          : new Date(
+              `${workData.endYear}-${getMonthNumber(workData.endMonth)}-01`
+            ).toISOString(),
         isCurrentlyWorking: workData.isCurrentlyWorking,
         description: workData.description,
+        skills: [], // Add empty skills array for now
       };
 
       // Create a temporary ID for optimistic update
@@ -118,6 +166,57 @@ const WorkExperience = () => {
         prevExperiences.filter((exp) => !exp._id.toString().startsWith("temp-"))
       );
       toast.error(error.message || "Failed to add work experience");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateWorkExperience = async (workData) => {
+    try {
+      setIsLoading(true);
+
+      // Format data for API
+      const formattedData = {
+        title: workData.jobTitle,
+        company: workData.company,
+        employmentType: workData.employmentType,
+        location: workData.location,
+        startDate: new Date(
+          `${workData.startYear}-${getMonthNumber(workData.startMonth)}-01`
+        ).toISOString(),
+        endDate: workData.isCurrentlyWorking
+          ? null
+          : new Date(
+              `${workData.endYear}-${getMonthNumber(workData.endMonth)}-01`
+            ).toISOString(),
+        isCurrentlyWorking: workData.isCurrentlyWorking,
+        description: workData.description,
+        skills: [], // Add empty skills array for now
+      };
+
+      console.log(
+        "🔄 Updating work experience:",
+        editingWorkExperience._id,
+        formattedData
+      );
+
+      // Call the API to update work experience
+      const result = await updateWorkExperience({
+        id: editingWorkExperience._id,
+        updates: formattedData,
+      }).unwrap();
+
+      if (result.success) {
+        // The Redux cache will automatically refetch and update the UI
+        toast.success("Work experience updated successfully!");
+        setIsEditModalOpen(false);
+        setEditingWorkExperience(null);
+      } else {
+        toast.error(result.message || "Failed to update work experience");
+      }
+    } catch (error) {
+      console.error("Error updating work experience:", error);
+      toast.error(error.message || "Failed to update work experience");
     } finally {
       setIsLoading(false);
     }
@@ -193,6 +292,7 @@ const WorkExperience = () => {
               workExperience.map((job, index) => (
                 <WorkExperienceItem
                   key={job._id || index}
+                  id={job._id}
                   title={job.title}
                   company={job.company}
                   period={formatPeriod(
@@ -203,6 +303,8 @@ const WorkExperience = () => {
                   employmentType={job.employmentType}
                   description={job.description}
                   skills={job.skills || []}
+                  onEdit={handleEditWorkExperience}
+                  onDelete={handleDeleteWorkExperience}
                 />
               ))
             ) : (
@@ -221,6 +323,16 @@ const WorkExperience = () => {
         onClose={handleCloseModal}
         onSave={handleSaveWorkExperience}
         isLoading={isLoading || isCreating}
+      />
+
+      {/* Edit Work Experience Modal */}
+      <AddWorkExperience
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
+        onSave={handleUpdateWorkExperience}
+        isLoading={isLoading || isUpdating}
+        editingWorkExperience={editingWorkExperience}
+        isEditMode={true}
       />
     </>
   );

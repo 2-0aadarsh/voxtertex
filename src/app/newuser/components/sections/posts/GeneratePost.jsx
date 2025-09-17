@@ -5,36 +5,15 @@ import { LiaTelegramPlane } from "react-icons/lia";
 import { motion } from "framer-motion";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../../../../../store/hooks";
-import { useCreatePostWithMediaMutation } from "../../../../../store/slices/postsSlice";
-import { useAppDispatch } from "../../../../../store/hooks";
-import {
-  feedApi,
-  useAddNewPostToFeedMutation,
-  useGetFeedPostsQuery,
-} from "../../../../../store/slices/feedSlice";
 
-const ActionButton = ({
-  icon: Icon,
-  label,
-  onClick,
-  disabled = false,
-  count = null,
-}) => (
+const ActionButton = ({ icon: Icon, label, onClick }) => (
   <button
     type="button"
     onClick={onClick}
-    disabled={disabled}
-    className={`flex items-center space-x-2 bg-white border border-gray-300 rounded-2xl px-7 py-2 text-gray-500 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer relative ${
-      disabled ? "opacity-50 cursor-not-allowed" : ""
-    }`}
+    className="flex items-center space-x-2 bg-white border border-gray-300 rounded-2xl px-7 py-2 text-gray-500 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
   >
     <Icon className="h-5 w-5" />
     <span>{label}</span>
-    {count !== null && count > 0 && (
-      <span className="absolute -top-2 -right-2 bg-[#FF6B35] text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-semibold">
-        {count}
-      </span>
-    )}
   </button>
 );
 
@@ -69,20 +48,6 @@ const GeneratePost = ({ onPost }) => {
   const fileInputRef = useRef(null);
   const photoInputRef = useRef(null);
   const auth = useAuth();
-  const dispatch = useAppDispatch();
-
-  // RTK Query mutation for creating posts with media
-  const [createPostWithMedia, { isLoading: isCreatingPost }] =
-    useCreatePostWithMediaMutation();
-
-  // RTK Query mutation for optimistic feed updates
-  const [addNewPostToFeed] = useAddNewPostToFeedMutation();
-
-  // Get refetch function for feed posts
-  const { refetch: refetchFeed } = useGetFeedPostsQuery({
-    page: 1,
-    limit: 100,
-  });
 
   const handleFileSelect = (e, type) => {
     const files = Array.from(e.target.files);
@@ -98,21 +63,9 @@ const GeneratePost = ({ onPost }) => {
       }))
     );
 
-    // Check total file count limit (max 10 files total)
-    const currentFileCount = selectedFiles.length;
-    const newFileCount = files.length;
-    const totalCount = currentFileCount + newFileCount;
-
-    if (totalCount > 10) {
-      toast.error(
-        `Maximum 10 files allowed. You currently have ${currentFileCount} files selected.`
-      );
-      return;
-    }
-
     // Validate file types and sizes
     const validFiles = files.filter((file) => {
-      // Check file size (max 5MB per file)
+      // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         toast.error(`File ${file.name} is too large (max 5MB)`);
         return false;
@@ -148,13 +101,6 @@ const GeneratePost = ({ onPost }) => {
 
     if (!validFiles.length) return;
 
-    // Show success message for multiple files
-    if (validFiles.length > 1) {
-      toast.success(`${validFiles.length} files selected successfully!`);
-    } else {
-      toast.success(`${validFiles[0].name} selected successfully!`);
-    }
-
     // Create preview URLs for images
     const newPreviewUrls = validFiles.map((file) => {
       if (file.type.startsWith("image/")) {
@@ -182,9 +128,6 @@ const GeneratePost = ({ onPost }) => {
       console.log("📸 Updated preview URLs:", updated);
       return updated;
     });
-
-    // Clear the input so the same file can be selected again if needed
-    e.target.value = "";
   };
 
   const removeFile = (index) => {
@@ -210,7 +153,7 @@ const GeneratePost = ({ onPost }) => {
     try {
       // Create FormData to handle file uploads
       const formData = new FormData();
-      formData.append("caption", content);
+      formData.append("caption", content); // Changed from "content" to "caption" to match backend schema
       formData.append("visibility", "public");
       formData.append("category", "general");
 
@@ -237,128 +180,51 @@ const GeneratePost = ({ onPost }) => {
         }))
       );
 
-      // Use RTK Query mutation for creating posts with media
-      const result = await createPostWithMedia(formData).unwrap();
+      // Upload to server with Cloudinary integration
+      const apiUrl = `${
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
+      }/post/create-with-media`;
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
 
       clearInterval(progressInterval);
       setUploadProgress(100);
 
+      const data = await res.json();
+
       // Log the response for debugging
-      console.log("📥 Server response:", result);
-      if (result.post && result.post.media) {
-        console.log("📷 Media in response:", result.post.media);
+      console.log("📥 Server response:", data);
+      if (data.post && data.post.media) {
+        console.log("📷 Media in response:", data.post.media);
       }
+      if (res.ok) {
+        // Format the post for the UI
+        const formattedPost = {
+          ...data.post,
+          date: new Date(data.post.createdAt).toLocaleString(),
+          likes: data.post.likesCount || 0,
+          comments: data.post.commentsCount || 0,
+          // Add media information if available
+          media: data.post.media || [],
+          // Use caption as content (matches backend schema)
+          content: data.post.caption,
+        };
 
-      // Format the post for the UI with all required fields for home feed
-      const formattedPost = {
-        ...result.post,
-        date: new Date(result.post.createdAt).toLocaleString(),
-        likes: result.post.likesCount || 0,
-        comments: result.post.commentsCount || 0,
-        // Add media information if available
-        media: result.post.media || [],
-        // Use caption as content (matches backend schema)
-        content: result.post.caption,
-        // Ensure we have all required fields for home feed
-        _id: result.post._id,
-        caption: result.post.caption,
-        createdAt: result.post.createdAt,
-        likesCount: result.post.likesCount || 0,
-        commentsCount: result.post.commentsCount || 0,
-        isLiked: result.post.isLiked || false,
-        user: result.post.user,
-        userName: result.post.userName,
-        userProfileImage: result.post.userProfileImage,
-      };
+        // Add the new post to the UI
+        onPost(formattedPost);
 
-      console.log("📝 Formatted post for UI:", formattedPost);
-
-      // Add the new post to the local UI (for RecentPosts section)
-      console.log("📄 Adding post to RecentPosts section...");
-      onPost(formattedPost);
-
-      // COMPREHENSIVE HOME FEED UPDATE - Multiple strategies for maximum reliability
-      console.log("🏠 Starting comprehensive home feed update...");
-
-      // Strategy 1: RTK Query Optimistic Update
-      console.log("🔄 Strategy 1: RTK Query optimistic update...");
-      try {
-        addNewPostToFeed(formattedPost);
-        console.log("✅ RTK Query optimistic update completed");
-      } catch (error) {
-        console.log("⚠️ RTK Query optimistic update failed:", error);
+        // Reset form
+        setContent("");
+        setSelectedFiles([]);
+        setPreviewUrls([]);
+        toast.success("Post created successfully!");
+      } else {
+        setError(data.message || "Failed to create post");
+        toast.error(data.message || "Failed to create post");
       }
-
-      // Strategy 2: Update multiple possible cache entries
-      console.log("🔄 Strategy 2: Updating multiple cache entries...");
-      const possibleQueries = [
-        { page: 1, limit: 5 },
-        { page: 1, limit: 10 },
-        { page: 1, limit: 20 },
-        { page: 1, limit: 50 },
-        { page: 1, limit: 100 },
-      ];
-
-      possibleQueries.forEach((queryParams) => {
-        try {
-          dispatch(
-            feedApi.util.updateQueryData(
-              "getFeedPosts",
-              queryParams,
-              (draft) => {
-                if (draft.data?.posts) {
-                  console.log(`📄 Updating cache for:`, queryParams);
-                  draft.data.posts.unshift(formattedPost);
-                  if (draft.data.pagination) {
-                    draft.data.pagination.total += 1;
-                  }
-                  console.log(`✅ Cache updated for:`, queryParams);
-                }
-              }
-            )
-          );
-        } catch (error) {
-          console.log(
-            `⚠️ Cache update failed for ${JSON.stringify(queryParams)}:`,
-            error
-          );
-        }
-      });
-
-      // Strategy 3: Cache invalidation
-      console.log("🔄 Strategy 3: Invalidating feed cache tags...");
-      dispatch(feedApi.util.invalidateTags(["FeedPost"]));
-
-      // Strategy 4: Direct refetch
-      setTimeout(() => {
-        console.log("🔄 Strategy 4: Force refetching feed...");
-        refetchFeed();
-      }, 100);
-
-      // Strategy 5: Custom event for cross-component communication
-      setTimeout(() => {
-        console.log("🔄 Strategy 5: Dispatching custom event...");
-        window.dispatchEvent(
-          new CustomEvent("newPostCreated", {
-            detail: { post: formattedPost },
-          })
-        );
-        console.log("✅ Custom event dispatched");
-      }, 200);
-
-      // Strategy 6: Final fallback invalidation
-      setTimeout(() => {
-        console.log("🔄 Strategy 6: Final fallback invalidation...");
-        dispatch(feedApi.util.invalidateTags(["FeedPost"]));
-      }, 500);
-
-      console.log("✅ All home feed update strategies completed!");
-
-      // Reset form
-      setContent("");
-      setSelectedFiles([]);
-      setPreviewUrls([]);
-      toast.success("Post created successfully!");
     } catch (err) {
       console.error("Error creating post:", err);
       setError("Something went wrong");
@@ -386,120 +252,72 @@ const GeneratePost = ({ onPost }) => {
 
         {/* File Previews */}
         {previewUrls.length > 0 && (
-          <div className="mt-4">
-            {/* File count indicator */}
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm text-gray-600 font-medium">
-                {previewUrls.length} file{previewUrls.length !== 1 ? "s" : ""}{" "}
-                selected
-              </p>
-              {!isUploading && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Clear all files
-                    previewUrls.forEach((preview) => {
-                      if (preview.url) {
-                        URL.revokeObjectURL(preview.url);
-                      }
-                    });
-                    setSelectedFiles([]);
-                    setPreviewUrls([]);
-                    toast.success("All files removed");
-                  }}
-                  className="text-xs text-red-500 hover:text-red-700 font-medium"
-                >
-                  Clear all
-                </button>
-              )}
-            </div>
-
-            {/* File preview grid */}
-            <div
-              className={`grid gap-3 ${
-                previewUrls.length === 1
-                  ? "grid-cols-1 max-w-[200px]"
-                  : previewUrls.length === 2
-                  ? "grid-cols-2 max-w-[400px]"
-                  : previewUrls.length <= 4
-                  ? "grid-cols-2 max-w-[400px]"
-                  : "grid-cols-3 max-w-[600px]"
-              }`}
-            >
-              {previewUrls.map((file, index) => (
-                <div
-                  key={index}
-                  className="relative group rounded-lg overflow-hidden border border-gray-200 bg-white"
-                >
-                  {file.type === "image" ? (
-                    <div className="w-full aspect-square relative bg-gray-100 rounded-lg overflow-hidden">
-                      <img
-                        src={file.url}
-                        alt={file.name}
-                        className="w-full h-full object-cover"
-                        onLoad={(e) => {
-                          console.log(
-                            "✅ Image loaded successfully:",
-                            file.name,
-                            "URL:",
-                            file.url
-                          );
-                        }}
-                        onError={(e) => {
-                          console.error(
-                            "❌ Preview image failed to load:",
-                            file.name,
-                            "URL:",
-                            file.url
-                          );
-                          e.target.onerror = null;
-                          e.target.style.display = "none";
-                          // Show fallback
-                          const fallback = e.target.nextElementSibling;
-                          if (fallback) fallback.style.display = "flex";
-                        }}
-                      />
-                      {/* Simple fallback */}
-                      <div
-                        className="absolute inset-0 bg-gray-200 flex flex-col items-center justify-center text-gray-500"
-                        style={{ display: "none" }}
-                      >
-                        <FiImage className="text-xl mb-1" />
-                        <span className="text-xs">Image</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="w-full aspect-square bg-gray-100 flex items-center justify-center rounded-lg">
-                      <div className="text-center p-2">
-                        <FiFileText className="mx-auto text-gray-500 text-xl mb-1" />
-                        <p className="text-xs text-gray-500 truncate max-w-[80px]">
-                          {file.name}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* File name overlay for images */}
-                  {file.type === "image" && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">
-                      <p className="text-xs truncate">{file.name}</p>
-                    </div>
-                  )}
-
-                  {/* Remove button */}
-                  {!isUploading && (
-                    <button
-                      type="button"
-                      onClick={() => removeFile(index)}
-                      className="absolute top-2 right-2 bg-white rounded-full p-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-50"
-                      title={`Remove ${file.name}`}
+          <div className="mt-4 flex flex-wrap gap-3">
+            {previewUrls.map((file, index) => (
+              <div
+                key={index}
+                className="relative group rounded-lg overflow-hidden border border-gray-200"
+              >
+                {file.type === "image" ? (
+                  <div className="w-24 h-24 relative bg-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+                    <img
+                      src={file.url}
+                      alt={file.name}
+                      className="w-full h-full object-cover"
+                      onLoad={(e) => {
+                        console.log(
+                          "✅ Image loaded successfully:",
+                          file.name,
+                          "URL:",
+                          file.url
+                        );
+                      }}
+                      onError={(e) => {
+                        console.error(
+                          "❌ Preview image failed to load:",
+                          file.name,
+                          "URL:",
+                          file.url
+                        );
+                        e.target.onerror = null;
+                        e.target.style.display = "none";
+                        // Show fallback
+                        const fallback = e.target.nextElementSibling;
+                        if (fallback) fallback.style.display = "flex";
+                      }}
+                    />
+                    {/* Simple fallback */}
+                    <div
+                      className="absolute inset-0 bg-gray-200 flex flex-col items-center justify-center text-gray-500"
+                      style={{ display: "none" }}
                     >
-                      <FiX className="text-red-500" size={12} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+                      <FiImage className="text-xl mb-1" />
+                      <span className="text-xs">Image</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 bg-gray-100 flex items-center justify-center">
+                    <div className="text-center p-2">
+                      <FiFileText className="mx-auto text-gray-500 text-xl" />
+                      <p className="text-xs text-gray-500 truncate mt-1 max-w-[80px]">
+                        {file.name}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Remove button */}
+                {!isUploading && (
+                  <button
+                    type="button"
+                    onClick={() => removeFile(index)}
+                    className="absolute top-1 right-1 bg-white rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  >
+                    <FiX className="text-red-500" size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
@@ -545,35 +363,22 @@ const GeneratePost = ({ onPost }) => {
         <div className="flex gap-3">
           <ActionButton
             icon={FiImage}
-            label="Photos"
+            label="Photo"
             onClick={() => !isUploading && photoInputRef.current.click()}
-            disabled={isUploading}
-            count={previewUrls.filter((f) => f.type === "image").length}
           />
           <ActionButton
             icon={FiFileText}
-            label="Files"
+            label="File"
             onClick={() => !isUploading && fileInputRef.current.click()}
-            disabled={isUploading}
-            count={previewUrls.filter((f) => f.type === "document").length}
           />
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* File count indicator */}
-          {selectedFiles.length > 0 && (
-            <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-              {selectedFiles.length}/10 files
-            </div>
-          )}
-
-          <PrimaryButton
-            label={isUploading ? "Uploading..." : "Post"}
-            disabled={
-              isUploading || (!content.trim() && selectedFiles.length === 0)
-            }
-          />
-        </div>
+        <PrimaryButton
+          label={isUploading ? "Uploading..." : "Post"}
+          disabled={
+            isUploading || (!content.trim() && selectedFiles.length === 0)
+          }
+        />
       </div>
     </form>
   );

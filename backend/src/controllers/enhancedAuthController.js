@@ -1,11 +1,13 @@
 import UserService from '../services/user.service.js';
 import ProfileService from '../services/profile.service.js';
 import EnhancedProfile from '../models/enhancedProfile.js';
-import { formatName } from '../utils/helpers/stringHelpers.js';
 import { generateTokenPair, verifyRefreshToken } from '../utils/tokens/jwt.utils.js';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookies/cookie.utils.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
+import bcrypt from "bcryptjs";
+import { sendPasswordResetOTP, sendPasswordChangedConfirmation } from '../services/email.service.js';
+import PasswordResetService from '../services/passwordReset.service.js';
 
 /**
  * Enhanced Authentication Controller
@@ -111,6 +113,9 @@ export const loginUser = async (req, res) => {
     // Get user profile for role-based routing
     const { profile } = await UserService.getUserById(user._id);
     
+    // Get yearsOfExperience from EnhancedProfile if it exists
+    const yearsOfExperience = profile?.yearsOfExperience !== undefined ? profile.yearsOfExperience : user.yearsOfExperience;
+    
     // Simple redirect to dashboard for all users
     let redirectUrl = '/dashboard';
     
@@ -119,6 +124,7 @@ export const loginUser = async (req, res) => {
       message: 'Login successful',
       user: {
         ...user,
+        yearsOfExperience, // Include the yearsOfExperience from profile
         profile: profile ? {
           id: profile._id,
           isComplete: user.isProfileComplete
@@ -154,9 +160,15 @@ export const getCurrentUser = async (req, res) => {
     
     const { user, profile } = await UserService.getUserById(req.user._id);
     
+    // Merge yearsOfExperience from profile if it exists
+    const userWithProfileData = {
+      ...user.toObject(),
+      yearsOfExperience: profile?.yearsOfExperience !== undefined ? profile.yearsOfExperience : user.yearsOfExperience
+    };
+    
     return res.status(200).json({
       success: true,
-      user,
+      user: userWithProfileData,
       profile
     });
   } catch (error) {
@@ -594,6 +606,12 @@ export const validateToken = async (req, res) => {
     
     const { profile } = await UserService.getUserById(req.user._id);
     
+    // Get yearsOfExperience from EnhancedProfile if it exists
+    let yearsOfExperience = req.user.yearsOfExperience; // Default to user's value
+    if (profile && profile.yearsOfExperience !== undefined) {
+      yearsOfExperience = profile.yearsOfExperience;
+    }
+    
     // Determine redirect URL based on user role (skip profile completion check)
     let redirectUrl = '/dashboard';
     
@@ -616,6 +634,7 @@ export const validateToken = async (req, res) => {
       message: 'Token is valid',
       user: {
         ...req.user,
+        yearsOfExperience, // Include the yearsOfExperience from profile
         profile: profile ? {
           id: profile._id,
           isComplete: req.user.isProfileComplete
@@ -708,6 +727,256 @@ export const deactivateAccount = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message
+    });
+  }
+};
+
+// Password validation function
+const isPasswordValid = (password) => {
+  return password.length >= 6 &&
+         /[A-Z]/.test(password) &&
+         /[a-z]/.test(password) &&
+         /[!@#$%^&*(),.?":{}|<>]/.test(password);
+};
+
+/**
+ * Send password reset OTP to user's email
+ * @route POST /api/auth/forgot-password
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Email is required" 
+      });
+    }
+
+    // Check if user exists
+    const user = await UserService.getUserByEmail(email.toLowerCase());
+    // Always return success for security (don't reveal if email exists)
+    if (!user) {
+      return res.status(200).json({ 
+        success: true,
+        message: "If an account with that email exists, we've sent a password reset link." 
+      });
+    }
+
+    // Create reset request using the service
+    const { resetLink } = await PasswordResetService.createResetRequest(
+      user,
+      req.ip,
+      req.get('User-Agent')
+    );
+
+    // Send reset link via email using existing service
+    await sendPasswordResetOTP(
+      email,
+      'Password Reset - VoxVertex',
+      {
+        resetLink: resetLink,
+        username: user.firstName,
+        appName: 'VoxVertex'
+      }
+    );
+
+    res.status(200).json({ 
+      success: true,
+      message: "If an account with that email exists, we've sent a password reset link." 
+    });
+
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
+  }
+};
+
+/**
+ * Verify password reset OTP
+ * @route POST /api/auth/verify-reset-otp
+ */
+export const verifyResetOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Email and OTP are required" 
+      });
+    }
+
+    // Verify OTP using the service
+    const { resetToken } = await PasswordResetService.verifyOTP(email, otp);
+
+    res.status(200).json({ 
+      success: true,
+      message: "OTP verified successfully",
+      token: resetToken
+    });
+
+  } catch (error) {
+    console.error('Verify reset OTP error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
+  }
+};
+
+/**
+ * Resend password reset OTP
+ * @route POST /api/auth/resend-reset-otp
+ */
+export const resendResetOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Email is required" 
+      });
+    }
+
+    const user = await UserService.getUserByEmail(email.toLowerCase());
+    
+    if (!user) {
+      return res.status(200).json({ 
+        success: true,
+        message: "If an account with that email exists, we've sent a new OTP." 
+      });
+    }
+
+    // Create new OTP request using the service
+    const { otp } = await PasswordResetService.createOTPRequest(
+      user,
+      req.ip,
+      req.get('User-Agent')
+    );
+
+    // Send new OTP via email using existing service
+    await sendPasswordResetOTP(
+      email,
+      'New Password Reset OTP - VoxVertex',
+      {
+        otp: otp,
+        username: user.firstName,
+        appName: 'VoxVertex'
+      }
+    );
+
+    res.status(200).json({ 
+      success: true,
+      message: "New OTP sent successfully" 
+    });
+
+  } catch (error) {
+    console.error('Resend reset OTP error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
+  }
+};
+
+/**
+ * Reset user password with token
+ * @route POST /api/auth/reset-password
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, token, newPassword } = req.body;
+
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Email, token, and new password are required" 
+      });
+    }
+
+    // Validate password
+    if (!isPasswordValid(newPassword)) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Password must be at least 6 characters long and contain uppercase, lowercase, and special characters" 
+      });
+    }
+
+    // Verify reset token using the service
+    const resetRequest = await PasswordResetService.verifyResetToken(email, token);
+    const user = resetRequest.user;
+
+    // Hash new password
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+
+    // Mark reset request as used
+    await PasswordResetService.markAsUsed(email, token);
+    console.log('✅ Password reset successful for email:', email);
+
+    // Send confirmation email using existing service
+    await sendPasswordChangedConfirmation(
+      email,
+      'Password Changed Successfully - VoxVertex',
+      {
+        username: user.firstName,
+        date: new Date().toLocaleString()
+      }
+    );
+
+    res.status(200).json({ 
+      success: true,
+      message: "Password reset successfully" 
+    });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
+  }
+};
+
+/**
+ * Test email functionality
+ * @route POST /api/auth/test-email
+ */
+export const testEmail = async (req, res) => {
+  try {
+    console.log('🧪 Testing email functionality...');
+    
+    // Test the email service
+    await sendPasswordResetOTP(
+      'aadarsh0811@gmail.com', // Test email
+      'Test Email - VoxVertex',
+      {
+        otp: '123456',
+        username: 'Test User',
+        appName: 'VoxVertex'
+      }
+    );
+    
+    res.status(200).json({ 
+      success: true,
+      message: "Test email sent successfully! Check your inbox." 
+    });
+  } catch (error) {
+    console.error('❌ Test email failed:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Test email failed", 
+      error: error.message 
     });
   }
 };

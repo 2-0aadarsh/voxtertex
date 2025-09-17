@@ -1,7 +1,7 @@
 import express from 'express';
 import auth from '../middleware/auth.js';
 import { authenticateJWT } from '../middleware/jwtAuth.js';
-import { registerUser, loginUser, getCurrentUser, validateToken, refreshToken, logoutUser, updateBasicInfo, updateProfileImage, getEnhancedProfile } from '../controllers/enhancedAuthController.js';
+import { registerUser, loginUser, getCurrentUser, validateToken, refreshToken, logoutUser, updateBasicInfo, updateProfileImage, getEnhancedProfile, forgotPassword, verifyResetOTP, resendResetOTP, resetPassword, testEmail } from '../controllers/enhancedAuthController.js';
 import multer from 'multer';
 
 const router = express.Router();
@@ -116,5 +116,40 @@ router.put('/profile/image', authenticateJWT, upload.single('image'), updateProf
  * @access  Private
  */
 router.get('/profile/enhanced', authenticateJWT, getEnhancedProfile);
+
+/**
+ * @route   POST /api/auth/forgot-password
+ * @desc    Send password reset OTP to user's email
+ * @access  Public
+ */
+router.post('/forgot-password', forgotPassword);
+
+/**
+ * @route   POST /api/auth/verify-reset-otp
+ * @desc    Verify password reset OTP
+ * @access  Public
+ */
+router.post('/verify-reset-otp', verifyResetOTP);
+
+/**
+ * @route   POST /api/auth/resend-reset-otp
+ * @desc    Resend password reset OTP
+ * @access  Public
+ */
+router.post('/resend-reset-otp', resendResetOTP);
+
+/**
+ * @route   POST /api/auth/reset-password
+ * @desc    Reset user password with token
+ * @access  Public
+ */
+router.post('/reset-password', resetPassword);
+
+/**
+ * @route   POST /api/auth/test-email
+ * @desc    Test email functionality
+ * @access  Public
+ */
+router.post('/test-email', testEmail);
 
 export default router;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadVideoWithThumbnail, saveFeaturedVideo } from "../../../../../services/featuredVideoService";
 
@@ -153,7 +153,10 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
 
       // 1. Upload video and thumbnail to Cloudinary via server
       console.log('Starting video and thumbnail upload to Cloudinary...');
-      const uploadResult = await uploadVideoWithThumbnail(videoFile, thumbnailFile, (progress: number) => {
+      const fileSizeMB = (videoFile.size / (1024 * 1024)).toFixed(2);
+      console.log(`📊 Uploading file: ${videoFile.name} (${fileSizeMB}MB)`);
+      
+      const uploadResult = await uploadVideoWithThumbnail(videoFile, thumbnailFile || undefined, (progress: number) => {
         setUploadStatus(prev => ({
           ...prev,
           progress: Math.min(progress, 95) // Cap at 95% until fully complete
@@ -310,6 +313,14 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
                           <div className="text-center mb-2">
                             <p className="text-[11px] text-gray-700 font-medium">Uploading video...</p>
                             <p className="text-[10px] text-gray-500">{uploadStatus.progress}%</p>
+                            {videoFile && (
+                              <p className="text-[9px] text-gray-400 mt-1">
+                                {videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(2)}MB)
+                              </p>
+                            )}
+                            <p className="text-[9px] text-orange-500 mt-1">
+                              Large files may take several minutes to upload
+                            </p>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
                             <div 

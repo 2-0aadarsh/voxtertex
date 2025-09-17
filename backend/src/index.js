@@ -22,7 +22,10 @@ import awardRoutes from './routes/awardRoutes.js';
 import featuredVideoRoutes from './routes/featuredVideoRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import smsRoutes from './routes/smsRoutes.js';
-import Message from './models/message.js';
+import speakersRoutes from './routes/booking/speakersRoutes.js';
+import messagingRoutes from './routes/messagingRoutes.js';
+import adminMessagingRoutes from './routes/adminMessagingRoutes.js';
+import messagingTestRoutes from './routes/messagingTestRoutes.js';
 import cors from "cors";
 import session from "express-session";
 import corsMiddleware from "./middleware/cors.js";
@@ -30,10 +33,10 @@ import passport from "passport";
 import cookieParser from "cookie-parser";
 import "./configs/passportConfig.js";
 import http from 'http';
-import { Server } from 'socket.io';
 import bodyParser from 'body-parser';
 import fs from 'fs';
 import path from 'path';
+import socketService from './services/socketService.js';
 
 import dotenv from "dotenv";
 import { connectCloudinary } from "./configs/cloudinary.config.js";
@@ -56,40 +59,14 @@ const app = express();
 
 const server = http.createServer(app);
 
-const io = new Server(server, {
-  cors: {
-    origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:5000"],
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
-});
-
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  socket.on('send_message', async (data) => {
-    const { sender, receiver, content } = data;
-
-    const message = new Message({ sender, receiver, content });
-    await message.save();
-
-    io.to(receiver).emit('receive_message', message);
-  });
-
-  socket.on('join', (userId) => {
-    socket.join(userId); // Join user-specific room
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
-});
+// Initialize Socket.IO service
+socketService.initialize(server);
 
 
 const corsOptions = {
     origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:5000", "http://localhost"],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }
 
@@ -160,6 +137,14 @@ app.use("/api/upload", uploadRoutes);
 
 // SMS routes
 app.use("/api/sms", smsRoutes);
+
+// Speakers routes (for booking system)
+app.use("/api/speakers", speakersRoutes);
+
+// Messaging routes
+app.use("/api/messaging", messagingRoutes);
+app.use("/api/admin/messaging", adminMessagingRoutes);
+app.use("/api/messaging-test", messagingTestRoutes);
 
 app.get('/', (req, res) => {
     res.send("VVS Website")

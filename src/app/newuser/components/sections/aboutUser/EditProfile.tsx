@@ -22,8 +22,8 @@ export default function EditProfile({ isOpen, onClose }: EditProfileProps) {
   // Get refetch function for current user query
   const { refetch: refetchCurrentUser } = useGetCurrentUserQuery();
   
-  // Get refetch function for profile query
-  const { refetch: refetchProfile } = useGetProfileQuery();
+  // Get profile data and refetch function
+  const { data: profileData, refetch: refetchProfile } = useGetProfileQuery();
 
   // Form state
   const [fullName, setFullName] = useState("");
@@ -97,15 +97,17 @@ export default function EditProfile({ isOpen, onClose }: EditProfileProps) {
       // Set expertise from user data
       setExpertiseList(user.areaOfExpertise || []);
       
-      // Set years of experience from user data - handle both number and string types
+      // Set years of experience from user data
       const userExperience = (user as { yearsOfExperience?: number | string }).yearsOfExperience;
+      let experienceValue = 0;
+      
       if (userExperience !== undefined && userExperience !== null) {
-        // Convert to number if it's a string, otherwise use as is
-        const experienceValue = typeof userExperience === 'string' ? parseInt(userExperience, 10) : userExperience;
-        setYearsOfExperience(isNaN(experienceValue) ? 0 : experienceValue);
-      } else {
-        setYearsOfExperience(0);
+        experienceValue = typeof userExperience === 'string' ? parseInt(userExperience, 10) : userExperience;
       }
+      
+      const finalExperienceValue = isNaN(experienceValue) ? 0 : experienceValue;
+      setYearsOfExperience(finalExperienceValue);
+      console.log('🎯 Setting years of experience to:', finalExperienceValue);
       
       // Set mobile verification status
       setIsMobileVerified((user as { isMobileVerified?: boolean }).isMobileVerified || false);
@@ -193,8 +195,8 @@ export default function EditProfile({ isOpen, onClose }: EditProfileProps) {
     setOtp(newOtp);
     setOtpError("");
 
-    // Auto focus next input
-    if (value && index < otp.length - 1) {
+    // Auto focus next input only if a valid digit was entered
+    if (value && value.length === 1 && /^\d$/.test(value) && index < otp.length - 1) {
       const nextInput = document.getElementById(`otp-${index + 1}`);
       nextInput?.focus();
     }
@@ -206,6 +208,59 @@ export default function EditProfile({ isOpen, onClose }: EditProfileProps) {
       const prevInput = document.getElementById(`otp-${index - 1}`);
       prevInput?.focus();
     }
+
+    // Handle arrow keys for navigation
+    if (e.key === "ArrowLeft" && index > 0) {
+      const prevInput = document.getElementById(`otp-${index - 1}`);
+      prevInput?.focus();
+    }
+
+    if (e.key === "ArrowRight" && index < otp.length - 1) {
+      const nextInput = document.getElementById(`otp-${index + 1}`);
+      nextInput?.focus();
+    }
+  };
+
+  const handleOTPPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, ''); // Remove non-digits
+
+    if (pastedData.length > 0) {
+      const newOtp = [...otp];
+      
+      // Fill the OTP array with pasted digits
+      for (let i = 0; i < Math.min(pastedData.length, otp.length); i++) {
+        newOtp[i] = pastedData[i];
+      }
+      
+      setOtp(newOtp);
+      setOtpError("");
+
+      // Focus on the next empty field or the last field
+      const nextEmptyIndex = newOtp.findIndex(digit => digit === '');
+      const focusIndex = nextEmptyIndex !== -1 ? nextEmptyIndex : otp.length - 1;
+      const nextInput = document.getElementById(`otp-${focusIndex}`);
+      nextInput?.focus();
+    }
+  };
+
+  const handleOTPClick = (index: number) => {
+    // Only allow clicking on the current field or the next empty field
+    const hasPreviousEmpty = otp.slice(0, index).some(digit => digit === '');
+    
+    // If there are empty fields before this one, focus on the first empty field
+    if (hasPreviousEmpty) {
+      const firstEmptyIndex = otp.findIndex(digit => digit === '');
+      if (firstEmptyIndex !== -1) {
+        const firstEmptyInput = document.getElementById(`otp-${firstEmptyIndex}`);
+        firstEmptyInput?.focus();
+        return;
+      }
+    }
+    
+    // Otherwise, allow normal focus
+    const input = document.getElementById(`otp-${index}`);
+    input?.focus();
   };
 
   const handleSendOTP = async () => {
@@ -541,6 +596,8 @@ export default function EditProfile({ isOpen, onClose }: EditProfileProps) {
                           value={digit}
                           onChange={(e) => handleOTPChange(e.target.value, index)}
                           onKeyDown={(e) => handleOTPKeyDown(e, index)}
+                          onPaste={handleOTPPaste}
+                          onClick={() => handleOTPClick(index)}
                           className="w-8 h-8 text-center text-sm border border-orange-300 rounded focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                           disabled={isVerifyingOTP || isSendingOTP}
                         />

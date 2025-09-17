@@ -31,6 +31,31 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ["Participant", "Expert", "Business", "Freelancer"],
         default: undefined,
+    },
+    // Password reset fields
+    resetPasswordOTP: {
+        type: String,
+        default: undefined,
+    },
+    resetPasswordOTPExpiry: {
+        type: Date,
+        default: undefined,
+    },
+    resetPasswordToken: {
+        type: String,
+        default: undefined,
+    },
+    resetPasswordTokenExpiry: {
+        type: Date,
+        default: undefined,
+    },
+    lastOTPRequest: {
+        type: Date,
+        default: undefined,
+    },
+    otpRequestCount: {
+        type: Number,
+        default: 0,
     }
 },
 

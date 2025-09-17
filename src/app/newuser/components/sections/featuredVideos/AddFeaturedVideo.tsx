@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { uploadVideo, saveFeaturedVideo } from "../../../../../services/featuredVideoService";
+import { uploadVideoWithThumbnail, saveFeaturedVideo } from "../../../../../services/featuredVideoService";
 
 interface VideoData {
   videoFile: File | null;
@@ -31,7 +31,7 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoTitle, setVideoTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [customThumbnailUrl, setCustomThumbnailUrl] = useState("");
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [category, setCategory] = useState("Other");
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>({
     isUploading: false,
@@ -40,6 +40,7 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
   });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
   // Handle the case where onClose might be undefined
   const handleClose = () => {
@@ -106,6 +107,36 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
     fileInputRef.current?.click();
   };
 
+  const handleThumbnailUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Check file size - limit to 5MB for thumbnails
+      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+      if (file.size > maxSize) {
+        alert(`Thumbnail file is too large. Maximum size is 5MB. Your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+        event.target.value = ''; // Clear the input
+        return;
+      }
+
+      // Check file format - only images
+      const supportedFormats = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      const imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+      
+      if (!supportedFormats.includes(file.type) && !imageExtensions.includes(fileExtension || '')) {
+        alert('Please select a valid image file for thumbnail (JPG, PNG, WebP).');
+        event.target.value = '';
+        return;
+      }
+      
+      setThumbnailFile(file);
+    }
+  };
+
+  const handleBrowseThumbnail = () => {
+    thumbnailInputRef.current?.click();
+  };
+
   const handleSubmit = async () => {
     // Basic validation
     if (!videoFile || !videoTitle || !description) {
@@ -121,9 +152,12 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
         error: null
       });
 
-      // 1. Upload video to Cloudinary via server
-      console.log('Starting video upload to Cloudinary...');
-      const uploadResult = await uploadVideo(videoFile, (progress: number) => {
+      // 1. Upload video and thumbnail to Cloudinary via server
+      console.log('Starting video and thumbnail upload to Cloudinary...');
+      const fileSizeMB = (videoFile.size / (1024 * 1024)).toFixed(2);
+      console.log(`📊 Uploading file: ${videoFile.name} (${fileSizeMB}MB)`);
+      
+      const uploadResult = await uploadVideoWithThumbnail(videoFile, thumbnailFile || undefined, (progress: number) => {
         setUploadStatus(prev => ({
           ...prev,
           progress: Math.min(progress, 95) // Cap at 95% until fully complete
@@ -137,14 +171,16 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
         title: videoTitle,
         description,
         videoUrl: uploadResult.videoUrl || uploadResult.secure_url,
-        thumbnailUrl: customThumbnailUrl || uploadResult.thumbnailUrl,
+        thumbnailUrl: uploadResult.thumbnailUrl, // Use custom or auto-generated thumbnail
         publicId: uploadResult.publicId,
+        thumbnailPublicId: uploadResult.thumbnailPublicId,
         format: uploadResult.format || 'mp4',
         duration: uploadResult.duration || 0,
         platform: 'Cloudinary',
         category: category,
         size: uploadResult.size,
-        metadata: uploadResult.metadata || {}
+        metadata: uploadResult.metadata || {},
+        hasCustomThumbnail: uploadResult.hasCustomThumbnail || false
       };
       
       console.log('💾 Saving video data to database for current user:', videoData);
@@ -164,7 +200,7 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
           videoFile,
         title: videoTitle,
         description,
-          customThumbnailUrl,
+          customThumbnailUrl: "", // Keep for compatibility but not used
           videoUrl: videoData.videoUrl,
           thumbnailUrl: videoData.thumbnailUrl,
           duration: savedVideo.durationFormatted || savedVideo.formattedDuration,
@@ -176,7 +212,7 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
       setVideoFile(null);
     setVideoTitle("");
     setDescription("");
-    setCustomThumbnailUrl("");
+      setThumbnailFile(null);
       setCategory("Other");
       
     } catch (error) {
@@ -195,7 +231,7 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
     setVideoFile(null);
     setVideoTitle("");
     setDescription("");
-    setCustomThumbnailUrl("");
+    setThumbnailFile(null);
     setCategory("Other");
     if (onClose) {
       onClose();
@@ -281,6 +317,14 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
                           <div className="text-center mb-2">
                             <p className="text-[11px] text-gray-700 font-medium">Uploading video...</p>
                             <p className="text-[10px] text-gray-500">{uploadStatus.progress}%</p>
+                            {videoFile && (
+                              <p className="text-[9px] text-gray-400 mt-1">
+                                {videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(2)}MB)
+                              </p>
+                            )}
+                            <p className="text-[9px] text-orange-500 mt-1">
+                              Large files may take several minutes to upload
+                            </p>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
                             <div 
@@ -381,20 +425,57 @@ export default function AddFeaturedVideo({ isOpen, onClose, onSave }: AddFeature
                   </select>
                 </div>
 
-                {/* Custom Thumbnail URL (Optional) */}
+                {/* Thumbnail Upload */}
                 <div className="relative">
                   <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-orange-500 z-10">
-                    Custom Thumbnail URL (Optional)
+                    Thumbnail Image (Optional)
                   </label>
+                  <div className="w-full rounded-md border border-gray-300 px-4 py-6 text-center bg-white">
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      {/* Upload Icon */}
+                      <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                        <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      
+                      {thumbnailFile ? (
+                        <div className="text-center">
+                          <p className="text-[11px] text-gray-700 font-medium">{thumbnailFile.name}</p>
+                          <p className="text-[10px] text-gray-500">
+                            {(thumbnailFile.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <p className="text-[11px] text-gray-600 font-medium">Upload Thumbnail Image</p>
+                          <p className="text-[10px] text-gray-400">
+                            Supported formats: JPG, PNG, WebP
+                          </p>
+                          <p className="text-[10px] font-bold text-orange-500">
+                            Maximum file size: 5MB
+                          </p>
+                        </div>
+                      )}
+                      
+                      <button
+                        type="button"
+                        onClick={handleBrowseThumbnail}
+                        className="px-4 py-1 rounded-md text-[10px] text-white bg-orange-500 hover:bg-orange-600 transition-colors"
+                      >
+                        Browse Image
+                      </button>
+                    </div>
+                  </div>
                   <input
-                    type="text"
-                    placeholder="https://"
-                    value={customThumbnailUrl}
-                    onChange={(e) => setCustomThumbnailUrl(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 px-4 py-2 text-[11px] focus:ring-1 focus:ring-orange-400 outline-none"
+                    ref={thumbnailInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleThumbnailUpload}
+                    className="hidden"
                   />
                   <p className="text-[10px] text-orange-400 mt-1">
-                    Provide a custom thumbnail image URL or leave empty to use auto-generated thumbnail
+                    Upload a custom thumbnail image or leave empty to use auto-generated thumbnail
                   </p>
                 </div>
 

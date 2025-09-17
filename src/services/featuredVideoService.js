@@ -140,10 +140,10 @@ export const uploadVideoWithThumbnail = async (videoFile, thumbnailFile = null, 
         reject(new Error('Network error during upload'));
       };
       
-      // Handle timeouts
-      xhr.timeout = 300000; // 5 minutes
+      // Handle timeouts - increased for large video files
+      xhr.timeout = 600000; // 10 minutes for large video uploads
       xhr.ontimeout = () => {
-        reject(new Error('Upload timed out after 5 minutes'));
+        reject(new Error('Upload timed out after 10 minutes. Please try with a smaller file or check your internet connection.'));
       };
       
       // Open and send the request

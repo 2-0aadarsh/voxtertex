@@ -86,6 +86,7 @@ class UserService {
   async getUserByEmail(email) {
     try {
       const user = await EnhancedUser.findOne({ email }).select('-password');
+      console.log("user in getUserByEmail service", user);
       return user;
     } catch (error) {
       throw new Error(`Failed to get user by email: ${error.message}`);
