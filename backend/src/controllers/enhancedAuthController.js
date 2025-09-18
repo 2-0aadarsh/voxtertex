@@ -2,7 +2,7 @@ import UserService from '../services/user.service.js';
 import ProfileService from '../services/profile.service.js';
 import EnhancedProfile from '../models/enhancedProfile.js';
 import { generateTokenPair, verifyRefreshToken } from '../utils/tokens/jwt.utils.js';
-import { setAuthCookies, clearAuthCookies } from '../utils/cookies/cookie.utils.js';
+import { setAuthCookies, setAllAuthCookies, clearAuthCookies } from '../utils/cookies/cookie.utils.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
 import bcrypt from "bcryptjs";
@@ -107,8 +107,8 @@ export const loginUser = async (req, res) => {
     // Generate JWT tokens
     const tokens = generateTokenPair(user);
     
-    // Set secure cookies
-    setAuthCookies(res, tokens);
+    // Set secure cookies including user role
+    setAllAuthCookies(res, tokens, user);
     
     // Get user profile for role-based routing
     const { profile } = await UserService.getUserById(user._id);
@@ -568,8 +568,8 @@ export const refreshToken = async (req, res) => {
     // Generate new token pair
     const tokens = generateTokenPair(user);
     
-    // Set new cookies
-    setAuthCookies(res, tokens);
+    // Set new cookies including user role
+    setAllAuthCookies(res, tokens, user);
     
     return res.status(200).json({
       success: true,
@@ -629,6 +629,12 @@ export const validateToken = async (req, res) => {
         redirectUrl = '/dashboard';
     }
     
+    // Set userRole cookie if it's not already set or if token was refreshed
+    if (req.tokenData?.refreshed || !req.cookies.userRole) {
+      const { setUserRoleCookie } = await import('../utils/cookies/cookie.utils.js');
+      setUserRoleCookie(res, req.user.role);
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Token is valid',

@@ -31,11 +31,36 @@ export const setAccessTokenCookie = (res, token) => {
 };
 
 /**
+ * Set user role cookie (non-httpOnly for client access)
+ */
+export const setUserRoleCookie = (res, role) => {
+  const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+  res.cookie("userRole", role, {
+    httpOnly: false, // Allow client-side access
+    secure: false, // Set to isProd in production
+    sameSite: "lax", // Set to isProd ? "none" : "lax" in production
+    maxAge,
+    path: '/',
+  });
+};
+
+/**
  * Set both tokens at once
  */
 export const setAuthCookies = (res, tokens) => {
   setAccessTokenCookie(res, tokens.accessToken);
   setRefreshTokenCookie(res, tokens.refreshToken);
+};
+
+/**
+ * Set all authentication cookies including user role
+ */
+export const setAllAuthCookies = (res, tokens, user) => {
+  setAccessTokenCookie(res, tokens.accessToken);
+  setRefreshTokenCookie(res, tokens.refreshToken);
+  if (user && user.role) {
+    setUserRoleCookie(res, user.role);
+  }
 };
 
 /**

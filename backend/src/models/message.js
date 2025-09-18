@@ -14,7 +14,7 @@ const messageSchema = new mongoose.Schema({
   // Message type
   messageType: {
     type: String,
-    enum: ['text', 'image', 'file', 'system', 'event_invite', 'booking_request'],
+    enum: ['text', 'image', 'file', 'system', 'event_invite', 'booking_request', 'negotiation_proposal', 'negotiation_accepted', 'negotiation_declined', 'negotiation_cancelled'],
     default: 'text'
   },
 
@@ -67,6 +67,38 @@ const messageSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking'
     },
+    
+    // For negotiation related messages
+    negotiationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Negotiation'
+    },
+    amount: {
+      type: Number,
+      min: 0
+    },
+    currency: {
+      type: String,
+      enum: ['USD', 'EUR', 'GBP', 'INR'],
+      default: 'USD'
+    },
+    proposalType: {
+      type: String,
+      enum: ['initial', 'counter', 'final']
+    },
+    finalAgreement: {
+      amount: Number,
+      currency: String,
+      acceptedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'EnhancedUser'
+      }
+    },
+    cancelledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'EnhancedUser'
+    },
+    reason: String,
     
     // Reply to another message
     replyTo: {
@@ -163,6 +195,7 @@ messageSchema.index({ status: 1 });
 messageSchema.index({ messageType: 1 });
 messageSchema.index({ 'metadata.eventId': 1 });
 messageSchema.index({ 'metadata.bookingId': 1 });
+messageSchema.index({ 'metadata.negotiationId': 1 });
 messageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index for expired messages
 messageSchema.index({ 'adminAccess.isFlagged': 1 });
 

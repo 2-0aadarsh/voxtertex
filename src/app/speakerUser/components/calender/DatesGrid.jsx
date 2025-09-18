@@ -2,7 +2,15 @@
 import { addDays, format, isSameMonth, isSameDay } from "date-fns";
 
 // helper to compare dates only (yyyy-MM-dd)
-const formatDateOnly = (date) => format(new Date(date), "yyyy-MM-dd");
+const formatDateOnly = (date) => {
+  const d = new Date(date);
+  // Since we store dates at midnight UTC, we need to handle timezone properly
+  // Convert to UTC date string to avoid timezone issues
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 const DatesGrid = ({
   startDate,
@@ -34,7 +42,24 @@ const DatesGrid = ({
       const dayAvailability =
         inCurrentMonth &&
         availabilityData.find((a) =>
-          a.dates.some((d) => formatDateOnly(d) === formatDateOnly(cloneDay))
+          a.dates.some((d) => {
+            // Compare dates properly by converting both to YYYY-MM-DD format
+            const storedDateStr = formatDateOnly(d); // UTC date from database
+            const localDateStr = format(cloneDay, "yyyy-MM-dd"); // Local date from calendar
+
+            // Debug logging
+            if (process.env.NODE_ENV === "development") {
+              console.log("Date comparison:", {
+                storedDate: d,
+                storedDateStr,
+                localDate: cloneDay,
+                localDateStr,
+                match: storedDateStr === localDateStr,
+              });
+            }
+
+            return storedDateStr === localDateStr;
+          })
         );
 
       days.push(

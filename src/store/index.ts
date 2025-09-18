@@ -54,8 +54,8 @@ const persistConfig = {
 const authPersistConfig = {
   key: 'auth',
   storage,
-  // Only persist essential auth data
-  whitelist: ['user', 'isAuthenticated', 'token'],
+  // Only persist essential auth data including role
+  whitelist: ['user', 'isAuthenticated', 'token', 'role'],
 };
 
 // Root reducer
@@ -157,8 +157,7 @@ export const invalidateUserData = () => {
       'Education', 
       'Award', 
       'Video', 
-      'CalendarEvent',
-      'Availability'
+      'CalendarEvent'
     ])
   );
 };

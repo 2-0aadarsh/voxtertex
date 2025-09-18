@@ -49,13 +49,8 @@ const authSlice = createSlice({
       state.isError = false;
       state.error = null;
       
-      // Set role in cookie for middleware access
-      if (typeof document !== 'undefined') {
-        document.cookie = `userRole=${action.payload.user.role}; path=/; max-age=86400`; // 24 hours
-        if (action.payload.token) {
-          document.cookie = `token=${action.payload.token}; path=/; max-age=86400`; // 24 hours
-        }
-      }
+      // Note: userRole cookie is set by backend, not frontend to avoid hydration issues
+      // The role is stored in Redux state for client-side access
       
       console.log('🟢 Auth state after update:', { 
         user: state.user, 
@@ -100,11 +95,8 @@ const authSlice = createSlice({
       state.isError = false;
       state.error = null;
       
-      // Clear cookies on logout
-      if (typeof document !== 'undefined') {
-        document.cookie = 'userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      }
+      // Note: Cookies are cleared by backend on logout
+      // Frontend only clears Redux state to avoid hydration issues
     },
     
     // Clear error

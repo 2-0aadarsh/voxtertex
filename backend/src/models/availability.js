@@ -111,8 +111,19 @@ const eventTypeSchema = new mongoose.Schema({
     required: true
   },
   subTypes: [{
-    type: String,
-    required: true
+    name: {
+      type: String,
+      required: true
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    currency: {
+      type: String,
+      default: 'INR'
+    }
   }]
 }, { _id: false });
 

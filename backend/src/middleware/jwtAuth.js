@@ -1,5 +1,5 @@
 import { verifyAccessToken, verifyRefreshToken, generateTokenPair } from '../utils/tokens/jwt.utils.js';
-import { setAuthCookies } from '../utils/cookies/cookie.utils.js';
+import { setAuthCookies, setAllAuthCookies } from '../utils/cookies/cookie.utils.js';
 import UserService from '../services/user.service.js';
 
 /**
@@ -64,8 +64,8 @@ export const authenticateJWT = async (req, res, next) => {
         // Generate new token pair
         const tokens = generateTokenPair(user);
         
-        // Set new cookies
-        setAuthCookies(res, tokens);
+        // Set new cookies including user role
+        setAllAuthCookies(res, tokens, user);
         
         req.user = user;
         req.tokenData = { ...decoded, refreshed: true };

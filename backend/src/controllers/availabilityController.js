@@ -242,13 +242,7 @@
 
 import Availability from '../models/availability.js';
 
-// Helper: normalize date (set to UTC midnight to avoid duplicates across zones)
-const normalizeDate = (d) => {
-  const dt = new Date(d);
-  // set hours to 0, keep as local midnight. If you want UTC use setUTCHours.
-  dt.setHours(0, 0, 0, 0);
-  return dt;
-};
+// Note: normalizeDate function removed as it's no longer needed with UTC date handling
 
 // Get availability for a specific month
 // export const getAvailability = async (req, res) => {
@@ -279,8 +273,9 @@ export const getAvailability = async (req, res, next) => {
     const { year, month } = req.params;
     const userId = req.user._id; // Get user from JWT authentication
     
-    const start = new Date(year, month - 1, 1);
-    const end = new Date(year, month, 0, 23, 59, 59);
+    // Create date range in UTC to match stored dates
+    const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const end = new Date(Date.UTC(year, month, 0, 23, 59, 59));
 
     const availability = await Availability.find({
       userId: userId, // Filter by authenticated user
@@ -301,9 +296,13 @@ export const getAvailabilityByDateRange = async (req, res) => {
     const userId = req.user._id; // Get user from JWT authentication
 
     // Query availability where date is within range for authenticated user
+    // Convert query dates to UTC to match stored dates
+    const startUTC = new Date(startDate + 'T00:00:00.000Z');
+    const endUTC = new Date(endDate + 'T23:59:59.999Z');
+    
     const availabilities = await Availability.find({
       userId: userId, // Filter by authenticated user
-      dates: { $elemMatch: { $gte: new Date(startDate), $lte: new Date(endDate) } },
+      dates: { $elemMatch: { $gte: startUTC, $lte: endUTC } },
     }).sort({ "dates": 1 });
 
     return res.status(200).json({ 
@@ -365,7 +364,15 @@ export const setAvailability = async (req, res, next) => {
     const availability = await Availability.findOneAndUpdate(
       { userId }, // keep one record per user
       {
-        $addToSet: { dates: { $each: dates.map(d => new Date(d)) } }, // prevent duplicate dates
+        $addToSet: { dates: { $each: dates.map(d => {
+          // Handle YYYY-MM-DD format to avoid timezone issues
+          if (typeof d === 'string' && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            // Create date at midnight UTC to avoid timezone shifting
+            const [year, month, day] = d.split('-').map(Number);
+            return new Date(Date.UTC(year, month - 1, day, 0, 0, 0)); // midnight UTC
+          }
+          return new Date(d);
+        }) } }, // prevent duplicate dates
         $set: {
           eventTypes,
           modes,

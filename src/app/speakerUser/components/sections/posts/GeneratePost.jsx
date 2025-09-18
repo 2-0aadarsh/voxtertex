@@ -12,6 +12,7 @@ import {
   useAddNewPostToFeedMutation,
   useGetFeedPostsQuery,
 } from "../../../../../store/slices/feedSlice";
+import FileUploadModal from "@/components/FileUploadModal";
 
 const ActionButton = ({ icon: Icon, label, onClick }) => (
   <button
@@ -51,9 +52,9 @@ const GeneratePost = ({ onPost }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [previewUrls, setPreviewUrls] = useState([]);
-
-  const fileInputRef = useRef(null);
-  const photoInputRef = useRef(null);
+  const [isFileModalOpen, setIsFileModalOpen] = useState(false);
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [currentUploadType, setCurrentUploadType] = useState("");
   const auth = useAuth();
   const dispatch = useAppDispatch();
 
@@ -70,85 +71,22 @@ const GeneratePost = ({ onPost }) => {
     limit: 100,
   });
 
-  const handleFileSelect = (e, type) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
+  const handlePhotoClick = () => {
+    setCurrentUploadType("photos");
+    setIsPhotoModalOpen(true);
+  };
 
-    console.log(
-      "📁 Files selected:",
-      files.map((f) => ({
-        name: f.name,
-        type: f.type,
-        size: f.size,
-        lastModified: f.lastModified,
-      }))
-    );
+  const handleFileClick = () => {
+    setCurrentUploadType("files");
+    setIsFileModalOpen(true);
+  };
 
-    // Validate file types and sizes
-    const validFiles = files.filter((file) => {
-      // Check file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`File ${file.name} is too large (max 5MB)`);
-        return false;
-      }
+  const handleFilesSelected = (files, previews) => {
+    console.log("📁 Files selected from modal:", files);
+    console.log("📸 Preview URLs from modal:", previews);
 
-      // Check file type based on upload type
-      if (type === "photo") {
-        const validImageTypes = [
-          "image/jpeg",
-          "image/png",
-          "image/gif",
-          "image/webp",
-        ];
-        if (!validImageTypes.includes(file.type)) {
-          toast.error(`File ${file.name} is not a valid image`);
-          return false;
-        }
-      } else if (type === "file") {
-        const validFileTypes = [
-          "application/pdf",
-          "application/msword",
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          "text/plain",
-        ];
-        if (!validFileTypes.includes(file.type)) {
-          toast.error(`File ${file.name} is not a supported document type`);
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    if (!validFiles.length) return;
-
-    // Create preview URLs for images
-    const newPreviewUrls = validFiles.map((file) => {
-      if (file.type.startsWith("image/")) {
-        const objectURL = URL.createObjectURL(file);
-        console.log("🖼️ Created object URL for:", file.name, "URL:", objectURL);
-        return {
-          url: objectURL,
-          type: "image",
-          name: file.name,
-          file: file, // Keep reference to original file for debugging
-        };
-      } else {
-        return {
-          url: null,
-          type: "document",
-          name: file.name,
-        };
-      }
-    });
-
-    console.log("📸 Setting preview URLs:", newPreviewUrls);
-    setSelectedFiles((prev) => [...prev, ...validFiles]);
-    setPreviewUrls((prev) => {
-      const updated = [...prev, ...newPreviewUrls];
-      console.log("📸 Updated preview URLs:", updated);
-      return updated;
-    });
+    setSelectedFiles((prev) => [...prev, ...files]);
+    setPreviewUrls((prev) => [...prev, ...previews]);
   };
 
   const removeFile = (index) => {
@@ -437,23 +375,23 @@ const GeneratePost = ({ onPost }) => {
 
       {error && <p className="text-red-500 text-sm">{error}</p>}
 
-      {/* Hidden file inputs */}
-      <input
-        type="file"
-        ref={photoInputRef}
-        onChange={(e) => handleFileSelect(e, "photo")}
-        accept="image/jpeg,image/png,image/gif,image/webp"
-        className="hidden"
-        multiple
+      {/* File Upload Modals */}
+      <FileUploadModal
+        isOpen={isPhotoModalOpen}
+        onClose={() => setIsPhotoModalOpen(false)}
+        onFilesSelected={handleFilesSelected}
+        uploadType="photos"
+        allowMultiple={true}
+        isUploading={isUploading}
       />
 
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={(e) => handleFileSelect(e, "file")}
-        accept=".pdf,.doc,.docx,.txt"
-        className="hidden"
-        multiple
+      <FileUploadModal
+        isOpen={isFileModalOpen}
+        onClose={() => setIsFileModalOpen(false)}
+        onFilesSelected={handleFilesSelected}
+        uploadType="files"
+        allowMultiple={true}
+        isUploading={isUploading}
       />
 
       {/* Action Row */}
@@ -462,12 +400,12 @@ const GeneratePost = ({ onPost }) => {
           <ActionButton
             icon={FiImage}
             label="Photo"
-            onClick={() => !isUploading && photoInputRef.current.click()}
+            onClick={() => !isUploading && handlePhotoClick()}
           />
           <ActionButton
             icon={FiFileText}
             label="File"
-            onClick={() => !isUploading && fileInputRef.current.click()}
+            onClick={() => !isUploading && handleFileClick()}
           />
         </div>
 

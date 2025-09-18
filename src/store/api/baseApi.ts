@@ -84,7 +84,8 @@ export const baseApi = createApi({
     'Education',
     'Award',
     'Video',
-    'CalendarEvent'
+    'CalendarEvent',
+    'Availability'
   ],
   endpoints: () => ({}),
 });

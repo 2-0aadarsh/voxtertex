@@ -70,7 +70,7 @@ const conversationSchema = new mongoose.Schema({
     },
     messageType: {
       type: String,
-      enum: ['text', 'image', 'file', 'system'],
+      enum: ['text', 'image', 'file', 'system', 'event_invite', 'booking_request', 'negotiation_proposal', 'negotiation_accepted', 'negotiation_declined', 'negotiation_cancelled'],
       default: 'text'
     }
   },

@@ -121,7 +121,7 @@ const WorkExperience = () => {
       };
 
       // Create a temporary ID for optimistic update
-      const tempId = `temp-${Date.now()}`;
+      const tempId = `temp-${Math.random().toString(36).substr(2, 9)}`;
 
       // Create a temporary work experience object for optimistic UI update
       const tempWorkExperience = {

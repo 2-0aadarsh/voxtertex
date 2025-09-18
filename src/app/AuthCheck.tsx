@@ -49,6 +49,10 @@ export default function AuthCheck() {
               user: data.user,
               token: data.tokens?.accessToken 
             }));
+            
+            // Note: userRole cookie is set by backend, not frontend to avoid hydration issues
+            // The role is stored in Redux state for client-side access
+            
             console.log('✅ Auth state manually updated with user from direct API call');
           }
         } catch (error) {

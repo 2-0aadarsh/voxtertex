@@ -117,7 +117,7 @@ const Education = () => {
       console.log("Formatted education data for API:", formattedData);
 
       // Create a temporary ID for optimistic update
-      const tempId = `temp-${Date.now()}`;
+      const tempId = `temp-${Math.random().toString(36).substr(2, 9)}`;
 
       // Create a temporary education object for optimistic UI update
       const tempEducation = {

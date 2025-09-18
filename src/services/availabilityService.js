@@ -242,12 +242,35 @@ export const formatAvailabilityData = (formData, dates) => {
     { label: "Night", time: "21:00 - 23:00" },
   ];
 
-  return {
-    dates: dates.map(d => new Date(d).toISOString()),
-    eventTypes: EVENT_CATEGORIES.map((cat) => ({
+  // Format event types with price information
+  const eventTypes = EVENT_CATEGORIES.map((cat) => {
+    const selectedSubTypes = formData.categories.filter((c) => cat.options.includes(c));
+    
+    if (selectedSubTypes.length === 0) return null;
+
+    return {
       category: cat.title,
-      subTypes: formData.categories.filter((c) => cat.options.includes(c)),
-    })).filter((et) => et.subTypes.length > 0),
+      subTypes: selectedSubTypes.map((subType) => {
+        const price = formData.prices?.[subType] ?? 0;
+        return {
+          name: subType,
+          price: price,
+          currency: 'INR'
+        };
+      })
+    };
+  }).filter(Boolean);
+
+  return {
+    dates: dates.map(d => {
+      // Create a date string in YYYY-MM-DD format to avoid timezone issues
+      const date = new Date(d);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }),
+    eventTypes,
     modes: formData.modes,
     timeSlots: TIME_SLOTS.filter((slot) =>
       formData.slots.includes(slot.label)

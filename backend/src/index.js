@@ -26,6 +26,8 @@ import speakersRoutes from './routes/booking/speakersRoutes.js';
 import messagingRoutes from './routes/messagingRoutes.js';
 import adminMessagingRoutes from './routes/adminMessagingRoutes.js';
 import messagingTestRoutes from './routes/messagingTestRoutes.js';
+import negotiationRoutes from './routes/negotiationRoutes.js';
+import speakerSearchRoutes from './routes/speakerSearchRoutes.js';
 import cors from "cors";
 import session from "express-session";
 import corsMiddleware from "./middleware/cors.js";
@@ -141,10 +143,16 @@ app.use("/api/sms", smsRoutes);
 // Speakers routes (for booking system)
 app.use("/api/speakers", speakersRoutes);
 
+// Speaker search routes
+app.use("/api/speaker-search", speakerSearchRoutes);
+
 // Messaging routes
 app.use("/api/messaging", messagingRoutes);
 app.use("/api/admin/messaging", adminMessagingRoutes);
 app.use("/api/messaging-test", messagingTestRoutes);
+
+// Negotiation routes
+app.use("/api/negotiations", negotiationRoutes);
 
 app.get('/', (req, res) => {
     res.send("VVS Website")

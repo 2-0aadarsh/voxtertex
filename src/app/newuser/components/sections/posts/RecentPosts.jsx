@@ -322,7 +322,9 @@ const PdfViewer = ({ url, filename }) => {
                   className="mx-auto shadow-sm"
                   width={Math.min(
                     600 * scale,
-                    (window.innerWidth - 100) * scale
+                    (typeof window !== "undefined"
+                      ? window.innerWidth - 100
+                      : 500) * scale
                   )}
                   scale={scale}
                 />
@@ -425,7 +427,11 @@ const MediaGallery = ({ media }) => {
             return (
               <div
                 key={idx}
-                onClick={() => window.open(mediaUrl, "_blank")}
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    window.open(mediaUrl, "_blank");
+                  }
+                }}
                 style={{ cursor: "pointer", display: "inline-block" }}
               >
                 <img

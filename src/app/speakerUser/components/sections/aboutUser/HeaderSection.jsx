@@ -5,6 +5,7 @@ import { RiEditBoxFill } from "react-icons/ri";
 import { MdOutlineCameraAlt } from "react-icons/md";
 import { motion } from "framer-motion";
 import EditProfile from "./EditProfile";
+import ProfilePictureModal from "@/components/ProfilePictureModal";
 import { useAuth } from "../../../../../store/hooks";
 import { useAppDispatch } from "../../../../../store/hooks";
 import { updateUser } from "../../../../../store/slices/authSlice";
@@ -12,10 +13,11 @@ import { toast } from "react-hot-toast";
 
 const HeaderSection = ({ name, role, description, domains, profilePic }) => {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isProfilePictureModalOpen, setIsProfilePictureModalOpen] =
+    useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [fallbackImage, setFallbackImage] = useState("");
-  const fileInputRef = useRef(null);
   const auth = useAuth();
   const dispatch = useAppDispatch();
 
@@ -42,25 +44,15 @@ const HeaderSection = ({ name, role, description, domains, profilePic }) => {
   };
 
   const handleImageClick = () => {
-    fileInputRef.current.click();
+    setIsProfilePictureModalOpen(true);
   };
 
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0];
+  const handleCloseProfilePictureModal = () => {
+    setIsProfilePictureModalOpen(false);
+  };
+
+  const handleImageUpload = async (file) => {
     if (!file) return;
-
-    // Validate file type
-    const validTypes = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
-    if (!validTypes.includes(file.type)) {
-      toast.error("Please select a valid image file (JPEG, PNG, or WebP)");
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image size should be less than 5MB");
-      return;
-    }
 
     try {
       setIsUploading(true);
@@ -130,6 +122,9 @@ const HeaderSection = ({ name, role, description, domains, profilePic }) => {
         if (updatedUser.profileImageUrl) {
           localStorage.setItem("userProfileImage", updatedUser.profileImageUrl);
         }
+
+        // Close the modal after successful upload
+        setIsProfilePictureModalOpen(false);
       }
     } catch (error) {
       console.error("Error uploading image:", error);
@@ -137,6 +132,65 @@ const HeaderSection = ({ name, role, description, domains, profilePic }) => {
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
+    }
+  };
+
+  const handleImageRemove = async () => {
+    try {
+      setIsUploading(true);
+
+      // Call API to remove profile image
+      const apiUrl = `${
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
+      }/auth/profile/image`;
+      const response = await fetch(apiUrl, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to remove image");
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.user) {
+        // Update Redux store with user data without profile image
+        const updatedUser = {
+          ...data.user,
+          profileImageUrl: null,
+          // If the user has _doc property, update that too for consistency
+          ...(data.user._doc
+            ? {
+                _doc: {
+                  ...data.user._doc,
+                  profileImageUrl: null,
+                },
+              }
+            : {}),
+        };
+
+        console.log(
+          "🗑️ Updated user after removing profile image:",
+          updatedUser
+        );
+
+        // Update Redux store with new user data
+        dispatch(updateUser(updatedUser));
+        toast.success("Profile picture removed successfully!");
+
+        // Remove from localStorage as well
+        localStorage.removeItem("userProfileImage");
+
+        // Close the modal after successful removal
+        setIsProfilePictureModalOpen(false);
+      }
+    } catch (error) {
+      console.error("Error removing image:", error);
+      toast.error(error.message || "Failed to remove image");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -170,14 +224,6 @@ const HeaderSection = ({ name, role, description, domains, profilePic }) => {
                 e.target.src = profilePic;
               }
             }}
-          />
-          {/* Hidden file input */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImageChange}
-            accept="image/jpeg,image/png,image/jpg,image/webp"
-            className="hidden"
           />
 
           {/* Camera icon button */}
@@ -334,6 +380,16 @@ const HeaderSection = ({ name, role, description, domains, profilePic }) => {
       <EditProfile
         isOpen={isEditProfileOpen}
         onClose={handleCloseEditProfile}
+      />
+
+      {/* Profile Picture Modal */}
+      <ProfilePictureModal
+        isOpen={isProfilePictureModalOpen}
+        onClose={handleCloseProfilePictureModal}
+        profilePic={auth.user?.profileImageUrl || fallbackImage}
+        onImageUpload={handleImageUpload}
+        onImageRemove={handleImageRemove}
+        isUploading={isUploading}
       />
     </>
   );

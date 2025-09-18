@@ -102,6 +102,7 @@ const AvailabilityModal = ({
     categories: [],
     modes: [],
     slots: [],
+    prices: {}, // Store price ranges for each selected event type
   });
 
   // Get current user data
@@ -121,7 +122,7 @@ const AvailabilityModal = ({
   // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setFormData({ categories: [], modes: [], slots: [] });
+      setFormData({ categories: [], modes: [], slots: [], prices: {} });
     }
   }, [isOpen]);
 
@@ -142,12 +143,41 @@ const AvailabilityModal = ({
   }, [isOpen]);
 
   const toggleSelection = (field, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: prev[field].includes(value)
-        ? prev[field].filter((item) => item !== value)
-        : [...prev[field], value],
-    }));
+    setFormData((prev) => {
+      const newData = {
+        ...prev,
+        [field]: prev[field].includes(value)
+          ? prev[field].filter((item) => item !== value)
+          : [...prev[field], value],
+      };
+
+      // If removing a category, also remove its price data
+      if (field === "categories" && !newData.categories.includes(value)) {
+        const { [value]: removed, ...remainingPrices } = newData.prices;
+        newData.prices = remainingPrices;
+      }
+
+      return newData;
+    });
+  };
+
+  const updatePrice = (eventType, value) => {
+    setFormData((prev) => {
+      let parsedValue = parseInt(value);
+      if (value === "") {
+        parsedValue = null; // Allow empty string in UI
+      } else if (isNaN(parsedValue)) {
+        parsedValue = null; // Treat non-numeric input as null for display purposes
+      }
+
+      return {
+        ...prev,
+        prices: {
+          ...prev.prices,
+          [eventType]: parsedValue,
+        },
+      };
+    });
   };
 
   const handleSubmit = async () => {
@@ -185,7 +215,7 @@ const AvailabilityModal = ({
       }
 
       // Reset state on success and close
-      setFormData({ categories: [], modes: [], slots: [] });
+      setFormData({ categories: [], modes: [], slots: [], prices: {} });
       resetDates();
       onClose();
     } catch (err) {
@@ -241,10 +271,47 @@ const AvailabilityModal = ({
                 ))}
               </div>
 
-              {/* Section 2 */}
+              {/* Section 2: Price Input */}
+              {formData.categories.length > 0 && (
+                <div>
+                  <h3 className="text-lg text-[#000] font-semibold mb-3">
+                    2. Set Your Price (INR)
+                  </h3>
+                  <div className="flex flex-wrap gap-4">
+                    {formData.categories.map((eventType) => (
+                      <div key={eventType} className="relative">
+                        <fieldset className="border border-gray-300 rounded-lg px-3 py-2">
+                          <legend className="text-[#FF6B35] font-medium text-sm px-1 bg-white">
+                            {eventType}
+                          </legend>
+                          <input
+                            type="number"
+                            min="0"
+                            value={
+                              formData.prices[eventType] === null ||
+                              formData.prices[eventType] === undefined
+                                ? ""
+                                : formData.prices[eventType]
+                            }
+                            onChange={(e) =>
+                              updatePrice(eventType, e.target.value)
+                            }
+                            className="w-32 border-0 outline-none text-sm focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            placeholder="0"
+                          />
+                        </fieldset>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Section 3 */}
               <div>
                 <h3 className="text-lg text-[#000] font-semibold mb-3">
-                  2. Select preferred modes
+                  {formData.categories.length > 0
+                    ? "3. Select preferred modes"
+                    : "2. Select preferred modes"}
                 </h3>
                 <div className="flex flex-wrap gap-4">
                   {MODES.map((mode) => (
@@ -258,10 +325,12 @@ const AvailabilityModal = ({
                 </div>
               </div>
 
-              {/* Section 3 */}
+              {/* Section 4 */}
               <div className="w-[95%]">
                 <h3 className="text-lg text-[#000] font-semibold">
-                  3. Choose your time slots (select multiple)
+                  {formData.categories.length > 0
+                    ? "4. Choose your time slots (select multiple)"
+                    : "3. Choose your time slots (select multiple)"}
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
                   {TIME_SLOTS.map((slot) => (

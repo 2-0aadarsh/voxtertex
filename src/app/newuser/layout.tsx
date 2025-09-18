@@ -34,7 +34,9 @@ export default function NewUserLayout({
 }>) {
   // Ensure page always starts from the top
   useEffect(() => {
-    window.scrollTo(0, 0);
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
   }, []);
 
   return (
