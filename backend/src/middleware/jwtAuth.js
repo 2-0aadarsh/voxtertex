@@ -132,16 +132,20 @@ export const authorizeRoles = (...roles) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: 'Authentication required',
-        code: 'NO_AUTH'
+        message: "Authentication required",
+        code: "NO_AUTH"
       });
     }
 
-    if (!roles.includes(req.user.role)) {
+    // Convert both required roles and user's role to lowercase
+    const allowedRoles = roles.map(role => role.toLowerCase());
+    const userRole = req.user.role?.toLowerCase();
+
+    if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({
         success: false,
-        message: 'Insufficient permissions',
-        code: 'INSUFFICIENT_PERMISSIONS',
+        message: "Insufficient permissions",
+        code: "INSUFFICIENT_PERMISSIONS",
         required: roles,
         current: req.user.role
       });
@@ -150,6 +154,7 @@ export const authorizeRoles = (...roles) => {
     return next();
   };
 };
+
 
 /**
  * Check if user profile is complete

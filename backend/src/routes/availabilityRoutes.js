@@ -39,7 +39,8 @@ import {
   setAvailability,
   getAvailabilityByDateRange,
   deleteAvailability,
-  getAvailabilityById
+  getAvailabilityById,
+  getSpeakerAvailability,
 } from '../controllers/availabilityController.js';
 
 import { authenticateJWT } from '../middleware/jwtAuth.js';
@@ -60,9 +61,12 @@ router.get('/range', getAvailabilityByDateRange);
 router.get("/:availabilityId", validateAvailabilityId, getAvailabilityById);
 
 // Set availability for single or multiple dates
-router.post('/', validateAvailability, setAvailability);
+router.post('/', authenticateJWT, setAvailability);
 
 // Delete availability for specific dates
 router.delete('/', deleteAvailability);
+
+// New public route for organizers
+router.get("/speaker/:speakerId", getSpeakerAvailability);
 
 export default router;

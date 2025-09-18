@@ -267,6 +267,67 @@ import Availability from '../models/availability.js';
 //   }
 // };
 
+// Get availability for a specific speaker (for organizers to view)
+export const getSpeakerAvailability = async (req, res) => {
+  try {
+    const { speakerId } = req.params;
+    const { startDate, endDate } = req.query;
+
+    if (!speakerId) {
+      return res.status(400).json({
+        success: false,
+        message: "Speaker ID is required",
+      });
+    }
+
+    // Fetch availability document for this speaker
+    const availabilityDoc = await Availability.findOne({ userId: speakerId });
+
+    if (!availabilityDoc) {
+      return res.status(404).json({
+        success: false,
+        message: "No availability found for this speaker",
+      });
+    }
+
+    // Convert dates array to JS Date objects
+    let availableDates = availabilityDoc.dates.map(d => new Date(d));
+
+    // Filter dates
+    if (startDate && endDate) {
+      const startUTC = new Date(startDate + "T00:00:00.000Z");
+      const endUTC = new Date(endDate + "T23:59:59.999Z");
+      availableDates = availableDates.filter(
+        d => d >= startUTC && d <= endUTC
+      );
+    } else {
+      // Default: only return future dates
+      const todayUTC = new Date();
+      todayUTC.setUTCHours(0, 0, 0, 0);
+      availableDates = availableDates.filter(d => d >= todayUTC);
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        _id: availabilityDoc._id,
+        speakerId: availabilityDoc.userId,
+        dates: availableDates.sort((a, b) => a - b), // sort ascending
+        eventTypes: availabilityDoc.eventTypes,
+        modes: availabilityDoc.modes,
+        timeSlots: availabilityDoc.timeSlots,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching speaker availability:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching speaker availability",
+    });
+  }
+};
+
+
 // Get availability for authenticated user
 export const getAvailability = async (req, res, next) => {
   try {
@@ -349,42 +410,53 @@ export const getAvailabilityById = async (req, res) => {
 };
 
 // Set availability for single or multiple dates
+
 export const setAvailability = async (req, res, next) => {
   try {
+    // ✅ Only speakers can set availability
+    if (req.user.role !== "speaker") {
+      return res.status(403).json({ message: "Only speakers can set availability" });
+    }
+
     const { dates, eventTypes, modes, timeSlots } = req.body;
-    const userId = req.user._id; // Get user from JWT authentication
-    
-    console.log('Setting availability for user:', userId, { dates, eventTypes, modes, timeSlots });
-    
+    const userId = req.user._id; // ✅ Always use logged-in speaker
+
+    console.log("Setting availability for SPEAKER:", userId, { dates, eventTypes, modes, timeSlots });
+
     if (!Array.isArray(dates) || dates.length === 0) {
       return res.status(400).json({ message: "At least one date is required" });
     }
 
-    // Upsert a single Availability entry for this user
+    // Upsert (create/update) a single Availability entry for this speaker
     const availability = await Availability.findOneAndUpdate(
-      { userId }, // keep one record per user
+      { userId }, // ✅ ensures only this speaker's record is modified
       {
-        $addToSet: { dates: { $each: dates.map(d => {
-          // Handle YYYY-MM-DD format to avoid timezone issues
-          if (typeof d === 'string' && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            // Create date at midnight UTC to avoid timezone shifting
-            const [year, month, day] = d.split('-').map(Number);
-            return new Date(Date.UTC(year, month - 1, day, 0, 0, 0)); // midnight UTC
-          }
-          return new Date(d);
-        }) } }, // prevent duplicate dates
+        $addToSet: {
+          dates: {
+            $each: dates.map(d => {
+              if (typeof d === "string" && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const [year, month, day] = d.split("-").map(Number);
+                return new Date(Date.UTC(year, month - 1, day, 0, 0, 0)); // store as UTC
+              }
+              return new Date(d);
+            }),
+          },
+        },
         $set: {
           eventTypes,
           modes,
           timeSlots,
           updatedAt: new Date(),
         },
-        $setOnInsert: { createdAt: new Date(), userId },
+        $setOnInsert: {
+          createdAt: new Date(),
+          userId,
+        },
       },
       { new: true, upsert: true }
     );
 
-    console.log('Availability saved successfully:', availability._id);
+    console.log("✅ Availability saved successfully:", availability);
 
     return res.status(200).json({
       success: true,
@@ -392,10 +464,11 @@ export const setAvailability = async (req, res, next) => {
       data: availability,
     });
   } catch (error) {
-    console.error('Error setting availability:', error);
+    console.error("Error setting availability:", error);
     next(error);
   }
 };
+
 
 
 

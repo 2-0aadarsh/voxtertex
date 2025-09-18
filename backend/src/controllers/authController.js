@@ -84,7 +84,7 @@ export const signUp = async (req, res) => {
         });
 
         await newUser.save();
-        console.log(`New User Created: ${newUser}`);
+        console.log(`New User Created: ${newUser}`);z
 
         //log in the user after registration
         req.login(newUser, (err) => {

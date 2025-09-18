@@ -28,6 +28,7 @@ import adminMessagingRoutes from './routes/adminMessagingRoutes.js';
 import messagingTestRoutes from './routes/messagingTestRoutes.js';
 import negotiationRoutes from './routes/negotiationRoutes.js';
 import speakerSearchRoutes from './routes/speakerSearchRoutes.js';
+import bookSpeakerRoutes from'./routes/bookSpeakerRoutes.js';
 import cors from "cors";
 import session from "express-session";
 import corsMiddleware from "./middleware/cors.js";
@@ -131,6 +132,7 @@ app.use("/api/enhanced-posts", enhancedPostRoutes);
 app.use("/api/work-experience", workExperienceRoutes);
 app.use("/api/education", educationRoutes);
 app.use("/api/awards", awardRoutes);
+app.use("/api/book-speaker", bookSpeakerRoutes);
 
 // Featured videos and upload routes
 app.use("/api/featured-videos", featuredVideoRoutes);

@@ -108,7 +108,7 @@ const eventTypeSchema = new mongoose.Schema({
       'Educational & Training Formats',
       'Specialized & Niche Events'
     ],
-    required: true
+    required: false
   },
   subTypes: [{
     name: {
