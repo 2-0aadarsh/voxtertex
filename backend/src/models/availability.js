@@ -130,7 +130,7 @@ const eventTypeSchema = new mongoose.Schema({
 const availabilitySchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'EnhancedUser',
     required: true
   },
 

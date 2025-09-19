@@ -428,33 +428,29 @@ export const setAvailability = async (req, res, next) => {
     }
 
     // Upsert (create/update) a single Availability entry for this speaker
-    const availability = await Availability.findOneAndUpdate(
-      { userId }, // ✅ ensures only this speaker's record is modified
-      {
-        $addToSet: {
-          dates: {
-            $each: dates.map(d => {
-              if (typeof d === "string" && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                const [year, month, day] = d.split("-").map(Number);
-                return new Date(Date.UTC(year, month - 1, day, 0, 0, 0)); // store as UTC
-              }
-              return new Date(d);
-            }),
-          },
-        },
-        $set: {
-          eventTypes,
-          modes,
-          timeSlots,
-          updatedAt: new Date(),
-        },
-        $setOnInsert: {
-          createdAt: new Date(),
-          userId,
-        },
-      },
-      { new: true, upsert: true }
-    );
+const availability = await Availability.findOneAndUpdate(
+  { userId },
+  {
+    $set: {
+      dates: dates.map(d => {
+        if (typeof d === "string" && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          const [year, month, day] = d.split("-").map(Number);
+          return new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+        }
+        return new Date(d);
+      }),
+      eventTypes,
+      modes,
+      timeSlots,
+      updatedAt: new Date(),
+    },
+    $setOnInsert: {
+      createdAt: new Date(),
+      userId,
+    },
+  },
+  { new: true, upsert: true }
+);
 
     console.log("✅ Availability saved successfully:", availability);
 
