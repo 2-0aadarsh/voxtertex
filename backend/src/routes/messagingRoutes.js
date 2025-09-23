@@ -43,6 +43,3 @@ router.get('/unread-count', getUnreadCount);
 router.get('/search', searchMessages);
 
 export default router;
-
-
-

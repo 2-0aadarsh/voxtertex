@@ -340,6 +340,10 @@ const enhancedProfileSchema = new mongoose.Schema({
     min: 0,
     max: 50
   },
+  tags: [{
+  type: String,
+  trim: true
+}],
   
   // Stats
   stats: {

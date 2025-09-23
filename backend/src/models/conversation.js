@@ -123,6 +123,7 @@ const conversationSchema = new mongoose.Schema({
 // Indexes for better performance
 conversationSchema.index({ 'participants.user': 1 });
 conversationSchema.index({ 'participants.role': 1 });
+conversationSchema.index({ 'participants.user': 1, 'participants.isActive': 1 });
 conversationSchema.index({ status: 1 });
 conversationSchema.index({ 'lastMessage.timestamp': -1 });
 conversationSchema.index({ 'context.eventId': 1 });
@@ -199,11 +200,14 @@ conversationSchema.statics.findBetweenUsers = function(userId1, userId2, type = 
     type: type,
     status: 'active',
     $and: [
-      { 'participants.user': userId1 },
-      { 'participants.user': userId2 }
+      { participants: { $elemMatch: { user: userId1 } } },
+      { participants: { $elemMatch: { user: userId2 } } }
     ]
   });
 };
+conversationSchema.virtual('hasUnread').get(function () {
+  return (userId) => this.getUnreadCount(userId) > 0;
+});
 
 // Static method to find user's conversations
 conversationSchema.statics.findUserConversations = function(userId, limit = 20, skip = 0) {

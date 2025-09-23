@@ -48,31 +48,34 @@ export const getAllSpeakerProfiles = async (req, res) => {
   }
 };
 
-
-
-
 export const createSpeakerBooking = async (req, res) => {
   try {
     const organizerId = req.user._id;
 
-    // ✅ Destructure once, keep it clean
+    // Destructure request body
     const {
       speakerId,
       date,
       timeSlot,
-       eventDetails,
+      eventDetails,
       compensationAndArrangements
     } = req.body;
 
-    console.log("🔎 Received speakerId:", speakerId);
-if (!eventDetails || !eventDetails.name || !eventDetails.type || !eventDetails.location || !eventDetails.expectedAttendees) {
-  return res.status(400).json({
-    success: false,
-    message: "Event name, type, location, and expected attendees are required"
-  });
-}
+    // Validate event details
+    if (
+      !eventDetails ||
+      !eventDetails.name ||
+      !eventDetails.type ||
+      !eventDetails.location ||
+      !eventDetails.expectedAttendees
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Event name, type, location, and expected attendees are required"
+      });
+    }
 
-    // 1️⃣ Parse timeSlot
+    // Parse timeSlot
     const [startTime, endTime] = (timeSlot || "").split("-").map(s => s.trim());
     if (!startTime || !endTime) {
       return res.status(400).json({
@@ -81,23 +84,17 @@ if (!eventDetails || !eventDetails.name || !eventDetails.type || !eventDetails.l
       });
     }
 
-    // 2️⃣ Validate Speaker
+    // Validate Speaker
     const speakerProfile = await EnhancedProfile.findOne({ user: speakerId });
     if (!speakerProfile) {
       return res.status(404).json({ success: false, message: "Speaker not found" });
     }
 
-    // 3️⃣ Check availability
+    // Check availability for selected date
     const startOfDay = new Date(date);
     startOfDay.setUTCHours(0, 0, 0, 0);
     const endOfDay = new Date(date);
     endOfDay.setUTCHours(23, 59, 59, 999);
-
-    console.log("Querying Availability for:", {
-      userId: speakerId,
-      startOfDay: startOfDay.toISOString(),
-      endOfDay: endOfDay.toISOString()
-    });
 
     const availability = await Availability.findOne({
       userId: new mongoose.Types.ObjectId(speakerId),
@@ -111,9 +108,11 @@ if (!eventDetails || !eventDetails.name || !eventDetails.type || !eventDetails.l
       });
     }
 
+    // Find the slot being booked
     const slotMatch = availability.timeSlots.find(
-      slot => slot.startTime === startTime && slot.endTime === endTime
+      slot => startTime >= slot.startTime && endTime <= slot.endTime
     );
+
     if (!slotMatch) {
       return res.status(400).json({
         success: false,
@@ -121,26 +120,22 @@ if (!eventDetails || !eventDetails.name || !eventDetails.type || !eventDetails.l
       });
     }
 
-    // 4️⃣ Validate compensation properly
-    if (
-      !compensationAndArrangements ||
-      !compensationAndArrangements.primaryCompensation
-    ) {
+    // Validate compensation
+    if (!compensationAndArrangements || !compensationAndArrangements.primaryCompensation) {
       return res.status(400).json({
         success: false,
         message: "Primary compensation is required"
       });
     }
 
-  const { primaryCompensation } = compensationAndArrangements;
+    const { primaryCompensation, travel, lodging, additionalArrangements } = compensationAndArrangements;
 
-const parsedSpeakerFee = primaryCompensation.speakerFeeAmount
-  ? Number(primaryCompensation.speakerFeeAmount)
-  : 0;
-
-const parsedHonorariumFee = primaryCompensation.honorariumFeeAmount
-  ? Number(primaryCompensation.honorariumFeeAmount)
-  : 0;
+    const parsedSpeakerFee = primaryCompensation.speakerFeeAmount
+      ? Number(primaryCompensation.speakerFeeAmount)
+      : 0;
+    const parsedHonorariumFee = primaryCompensation.honorariumFeeAmount
+      ? Number(primaryCompensation.honorariumFeeAmount)
+      : 0;
 
     if (parsedSpeakerFee <= 0 && parsedHonorariumFee <= 0) {
       return res.status(400).json({
@@ -150,11 +145,11 @@ const parsedHonorariumFee = primaryCompensation.honorariumFeeAmount
       });
     }
 
-    // 5️⃣ Create bookingId
+    // Create bookingId
     const count = await Booking.countDocuments();
     const bookingId = `BK-${String(count + 1).padStart(5, "0")}`;
 
-    // 6️⃣ Create Booking
+    // Create Booking
     const booking = new Booking({
       bookingId,
       organizer: organizerId,
@@ -162,46 +157,61 @@ const parsedHonorariumFee = primaryCompensation.honorariumFeeAmount
       date: new Date(date),
       timeSlot: `${startTime}-${endTime}`,
       eventDetails: {
-      name: eventDetails.name,
-      type: eventDetails.type,
-      location: eventDetails.location,
-      expectedAttendees: eventDetails.expectedAttendees,
-      specialRequirement: eventDetails.specialRequirement || "",
-      personalMessage: eventDetails.personalMessage || ""
-    },
+        name: eventDetails.name,
+        type: eventDetails.type,
+        location: eventDetails.location,
+        expectedAttendees: eventDetails.expectedAttendees,
+        specialRequirement: eventDetails.specialRequirement || "",
+        personalMessage
+      },
       compensationAndArrangements: {
         primaryCompensation: {
           speakerFeeAmount: parsedSpeakerFee,
           honorariumFeeAmount: parsedHonorariumFee
         },
-        travel: compensationAndArrangements.travel || {},
-        lodging: {
-          ...compensationAndArrangements.lodging,
-          checkInDate: compensationAndArrangements.lodging?.checkInDate
-            ? new Date(compensationAndArrangements.lodging.checkInDate)
-            : null,
-          checkOutDate: compensationAndArrangements.lodging?.checkOutDate
-            ? new Date(compensationAndArrangements.lodging.checkOutDate)
-            : null
+        travel: {
+          travelMode: travel?.travelMode || "",
+          arrangements: travel?.arrangements || "",
+          offeredAmount: travel?.offeredAmount || 0
         },
-        additionalArrangements:
-          compensationAndArrangements.additionalArrangements || {}
+        lodging: {
+          ...lodging,
+          checkInDate: lodging?.checkInDate ? new Date(lodging.checkInDate) : null,
+          checkOutDate: lodging?.checkOutDate ? new Date(lodging.checkOutDate) : null
+        },
+        additionalArrangements: additionalArrangements || {}
       }
     });
 
     await booking.save();
 
-    // 7️⃣ Remove booked slot
-    availability.timeSlots = availability.timeSlots.filter(
-      slot => !(slot.startTime === startTime && slot.endTime === endTime)
-    );
+    // --- Hybrid availability update logic (date + partial time split) ---
+    const bookedDateISO = startOfDay.toISOString();
+    const newTimeSlots = [];
 
-    if (availability.timeSlots.length === 0) {
-      availability.dates = availability.dates.filter(
-        d => d.toISOString() !== startOfDay.toISOString()
-      );
+    for (let slot of availability.timeSlots) {
+      if (slot.startTime === slotMatch.startTime && slot.endTime === slotMatch.endTime) {
+        // Partial slot before booking
+        if (startTime > slot.startTime) {
+          newTimeSlots.push({ ...slot, endTime: startTime });
+        }
+        // Partial slot after booking
+        if (endTime < slot.endTime) {
+          newTimeSlots.push({ ...slot, startTime: endTime });
+        }
+      } else {
+        newTimeSlots.push(slot); // unaffected slots
+      }
     }
 
+    availability.timeSlots = newTimeSlots;
+
+    // Remove booked date if no slots left
+    if (availability.timeSlots.length === 0) {
+      availability.dates = availability.dates.filter(d => d.toISOString() !== bookedDateISO);
+    }
+
+    // Save updated availability
     await availability.save();
 
     return res.status(201).json({
@@ -218,6 +228,9 @@ const parsedHonorariumFee = primaryCompensation.honorariumFeeAmount
     });
   }
 };
+
+
+
 
 
 

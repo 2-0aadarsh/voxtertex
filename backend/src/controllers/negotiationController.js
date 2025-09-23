@@ -1,3 +1,4 @@
+
 import Negotiation from '../models/negotiation.js';
 import Conversation from '../models/conversation.js';
 import Message from '../models/message.js';
@@ -12,53 +13,34 @@ export const createNegotiation = async (req, res) => {
     const currentUserId = req.user._id;
     const currentUserRole = req.user.role;
 
-    // Validate conversation access
     const conversation = await Conversation.findById(conversationId);
     if (!conversation || !conversation.isParticipant(currentUserId)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied to this conversation'
-      });
+      return res.status(403).json({ success: false, message: 'Access denied to this conversation' });
     }
 
-    // Check if negotiation already exists for this conversation
     const existingNegotiation = await Negotiation.findByConversation(conversationId);
     if (existingNegotiation && existingNegotiation.status === 'active') {
-      return res.status(400).json({
-        success: false,
-        message: 'An active negotiation already exists for this conversation'
-      });
+      return res.status(400).json({ success: false, message: 'An active negotiation already exists for this conversation' });
     }
 
-    // Determine organizer and speaker based on roles
+    // Determine organizer and speaker
     const participants = conversation.participants;
     let organizer, speaker;
-    
     for (const participant of participants) {
       if (participant.user.toString() === currentUserId) {
-        if (currentUserRole === 'organizer') {
-          organizer = currentUserId;
-        } else {
-          speaker = currentUserId;
-        }
+        if (currentUserRole === 'organizer') organizer = currentUserId;
+        else speaker = currentUserId;
       } else {
         const otherUser = await EnhancedUser.findById(participant.user);
-        if (otherUser.role === 'organizer') {
-          organizer = participant.user;
-        } else {
-          speaker = participant.user;
-        }
+        if (otherUser.role === 'organizer') organizer = participant.user;
+        else speaker = participant.user;
       }
     }
 
     if (!organizer || !speaker) {
-      return res.status(400).json({
-        success: false,
-        message: 'Both organizer and speaker must be present in the conversation'
-      });
+      return res.status(400).json({ success: false, message: 'Both organizer and speaker must be present in the conversation' });
     }
 
-    // Create negotiation
     const negotiation = new Negotiation({
       conversation: conversationId,
       organizer,
@@ -85,23 +67,16 @@ export const createNegotiation = async (req, res) => {
 
     await negotiation.save();
 
-    // Create a negotiation message in the conversation
     const negotiationMessage = new Message({
       content: `💰 New proposal: ${currency} ${amount} - ${message || 'No additional message'}`,
       messageType: 'negotiation_proposal',
       sender: currentUserId,
       conversation: conversationId,
-      metadata: {
-        negotiationId: negotiation._id,
-        amount,
-        currency,
-        proposalType: 'initial'
-      }
+      metadata: { negotiationId: negotiation._id, amount, currency, proposalType: 'initial' }
     });
 
     await negotiationMessage.save();
 
-    // Update conversation's last message
     conversation.lastMessage = {
       content: `💰 New proposal: ${currency} ${amount}`,
       sender: currentUserId,
@@ -110,33 +85,19 @@ export const createNegotiation = async (req, res) => {
     };
     await conversation.save();
 
-    // Populate negotiation data
     await negotiation.populate([
       { path: 'organizer', select: 'firstName lastName email role' },
       { path: 'speaker', select: 'firstName lastName email role' },
       { path: 'event', select: 'title date' }
     ]);
 
-    // Emit real-time event
-    socketService.io.to(conversationId).emit('negotiation_created', {
-      negotiation: negotiation,
-      message: negotiationMessage
-    });
+    socketService.io.to(conversationId).emit('negotiation_created', { negotiation, message: negotiationMessage });
 
-    res.status(201).json({
-      success: true,
-      message: 'Negotiation created successfully',
-      negotiation: negotiation,
-      message: negotiationMessage
-    });
+    res.status(201).json({ success: true, message: 'Negotiation created successfully', negotiation, message: negotiationMessage });
 
   } catch (error) {
     console.error('Error creating negotiation:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
 
@@ -146,37 +107,19 @@ export const getNegotiation = async (req, res) => {
     const { conversationId } = req.params;
     const currentUserId = req.user._id;
 
-    // Validate conversation access
     const conversation = await Conversation.findById(conversationId);
     if (!conversation || !conversation.isParticipant(currentUserId)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied to this conversation'
-      });
+      return res.status(403).json({ success: false, message: 'Access denied to this conversation' });
     }
 
     const negotiation = await Negotiation.findByConversation(conversationId);
-    
-    if (!negotiation) {
-      return res.status(404).json({
-        success: false,
-        message: 'No negotiation found for this conversation'
-      });
-    }
+    if (!negotiation) return res.status(404).json({ success: false, message: 'No negotiation found for this conversation' });
 
-    res.status(200).json({
-      success: true,
-      message: 'Negotiation retrieved successfully',
-      negotiation: negotiation
-    });
+    res.status(200).json({ success: true, message: 'Negotiation retrieved successfully', negotiation });
 
   } catch (error) {
     console.error('Error getting negotiation:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
 
@@ -188,112 +131,57 @@ export const proposeAmount = async (req, res) => {
     const currentUserId = req.user._id;
 
     const negotiation = await Negotiation.findById(negotiationId);
-    if (!negotiation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Negotiation not found'
-      });
-    }
+    if (!negotiation) return res.status(404).json({ success: false, message: 'Negotiation not found' });
 
-    // Check if user is participant
     const currentUserIdStr = currentUserId.toString();
     const organizerIdStr = negotiation.organizer.toString();
     const speakerIdStr = negotiation.speaker.toString();
-    
-    if (organizerIdStr !== currentUserIdStr && 
-        speakerIdStr !== currentUserIdStr) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied to this negotiation'
-      });
+    if (organizerIdStr !== currentUserIdStr && speakerIdStr !== currentUserIdStr) {
+      return res.status(403).json({ success: false, message: 'Access denied to this negotiation' });
     }
 
-    // Check if negotiation is still active
     if (negotiation.status !== 'active') {
-      return res.status(400).json({
-        success: false,
-        message: 'Negotiation is no longer active'
-      });
+      return res.status(400).json({ success: false, message: 'Negotiation is no longer active' });
     }
 
-    // Check if user can make a proposal (not the same as last proposer)
-    // Find the last pending proposal
-    const lastPendingProposal = negotiation.proposals
-      .slice()
-      .reverse()
-      .find(proposal => proposal.status === 'pending');
-    
+    const lastPendingProposal = negotiation.proposals.slice().reverse().find(p => p.status === 'pending');
     if (lastPendingProposal && lastPendingProposal.proposedBy.toString() === currentUserIdStr) {
-      return res.status(400).json({
-        success: false,
-        message: 'You cannot make consecutive proposals. Wait for the other party to respond.'
-      });
+      return res.status(400).json({ success: false, message: 'You cannot make consecutive proposals. Wait for the other party to respond.' });
     }
 
-    // Check proposal limits
     if (negotiation.proposals.length >= negotiation.settings.maxProposals) {
-      return res.status(400).json({
-        success: false,
-        message: 'Maximum number of proposals reached'
-      });
+      return res.status(400).json({ success: false, message: 'Maximum number of proposals reached' });
     }
 
-    // Add new proposal
     await negotiation.addProposal(amount, currency, currentUserId, message);
 
-    // Create negotiation message
     const negotiationMessage = new Message({
       content: `💰 Counter-proposal: ${currency} ${amount} - ${message || 'No additional message'}`,
       messageType: 'negotiation_proposal',
       sender: currentUserId,
       conversation: negotiation.conversation,
-      metadata: {
-        negotiationId: negotiation._id,
-        amount,
-        currency,
-        proposalType: 'counter'
-      }
+      metadata: { negotiationId: negotiation._id, amount, currency, proposalType: 'counter' }
     });
 
     await negotiationMessage.save();
 
-    // Update conversation's last message
     const conversation = await Conversation.findById(negotiation.conversation);
-    conversation.lastMessage = {
-      content: `💰 Counter-proposal: ${currency} ${amount}`,
-      sender: currentUserId,
-      timestamp: negotiationMessage.createdAt,
-      messageType: 'negotiation_proposal'
-    };
+    conversation.lastMessage = { content: `💰 Counter-proposal: ${currency} ${amount}`, sender: currentUserId, timestamp: negotiationMessage.createdAt, messageType: 'negotiation_proposal' };
     await conversation.save();
 
-    // Populate negotiation data
     await negotiation.populate([
       { path: 'organizer', select: 'firstName lastName email role' },
       { path: 'speaker', select: 'firstName lastName email role' },
       { path: 'event', select: 'title date' }
     ]);
 
-    // Emit real-time event
-    socketService.io.to(negotiation.conversation.toString()).emit('negotiation_proposal', {
-      negotiation: negotiation,
-      message: negotiationMessage
-    });
+    socketService.io.to(negotiation.conversation.toString()).emit('negotiation_proposal', { negotiation, message: negotiationMessage });
 
-    res.status(200).json({
-      success: true,
-      message: 'Proposal sent successfully',
-      negotiation: negotiation,
-      message: negotiationMessage
-    });
+    res.status(200).json({ success: true, message: 'Proposal sent successfully', negotiation, message: negotiationMessage });
 
   } catch (error) {
     console.error('Error proposing amount:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
 
@@ -305,107 +193,64 @@ export const acceptProposal = async (req, res) => {
     const currentUserId = req.user._id;
 
     const negotiation = await Negotiation.findById(negotiationId);
-    if (!negotiation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Negotiation not found'
-      });
-    }
+    if (!negotiation) return res.status(404).json({ success: false, message: 'Negotiation not found' });
 
-    // Check if user is participant
     const currentUserIdStr = currentUserId.toString();
     const organizerIdStr = negotiation.organizer.toString();
     const speakerIdStr = negotiation.speaker.toString();
-    
-    if (organizerIdStr !== currentUserIdStr && 
-        speakerIdStr !== currentUserIdStr) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied to this negotiation'
-      });
+    if (organizerIdStr !== currentUserIdStr && speakerIdStr !== currentUserIdStr) {
+      return res.status(403).json({ success: false, message: 'Access denied to this negotiation' });
     }
 
-    // Check if negotiation is still active
     if (negotiation.status !== 'active') {
-      return res.status(400).json({
-        success: false,
-        message: 'Negotiation is no longer active'
-      });
+      return res.status(400).json({ success: false, message: 'Negotiation is no longer active' });
     }
 
-    // Check if there's a pending proposal to accept
     const lastProposal = negotiation.proposals[negotiation.proposals.length - 1];
     if (!lastProposal || lastProposal.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: 'No pending proposal to accept'
-      });
+      return res.status(400).json({ success: false, message: 'No pending proposal to accept' });
     }
 
-    // Check if user is not the one who made the proposal
     if (lastProposal.proposedBy.toString() === currentUserIdStr) {
-      return res.status(400).json({
-        success: false,
-        message: 'You cannot accept your own proposal'
-      });
+      return res.status(400).json({ success: false, message: 'You cannot accept your own proposal' });
     }
 
-    // Accept the proposal
+    // Accept proposal using respondToProposal (no manual update)
     await negotiation.respondToProposal(negotiation.proposals.length - 1, 'accepted', message);
 
-    // Create acceptance message
+    negotiation.currentProposal = { ...lastProposal, status: 'accepted', respondedAt: new Date(), responseMessage: message || 'I accept this proposal' };
+    negotiation.finalAgreement = { amount: lastProposal.amount, currency: lastProposal.currency, acceptedBy: currentUserId, acceptedAt: new Date() };
+    negotiation.status = 'accepted';
+
+    await negotiation.save();
+
     const acceptanceMessage = new Message({
       content: `✅ Proposal accepted: ${negotiation.currentProposal.currency} ${negotiation.currentProposal.amount} - ${message || 'Deal confirmed!'}`,
       messageType: 'negotiation_accepted',
       sender: currentUserId,
       conversation: negotiation.conversation,
-      metadata: {
-        negotiationId: negotiation._id,
-        amount: negotiation.currentProposal.amount,
-        currency: negotiation.currentProposal.currency,
-        finalAgreement: negotiation.finalAgreement
-      }
+      metadata: { negotiationId: negotiation._id, amount: negotiation.currentProposal.amount, currency: negotiation.currentProposal.currency, finalAgreement: negotiation.finalAgreement }
     });
 
     await acceptanceMessage.save();
 
-    // Update conversation's last message
     const conversation = await Conversation.findById(negotiation.conversation);
-    conversation.lastMessage = {
-      content: `✅ Proposal accepted: ${negotiation.currentProposal.currency} ${negotiation.currentProposal.amount}`,
-      sender: currentUserId,
-      timestamp: acceptanceMessage.createdAt,
-      messageType: 'negotiation_accepted'
-    };
+    conversation.lastMessage = { content: `✅ Proposal accepted: ${negotiation.currentProposal.currency} ${negotiation.currentProposal.amount}`, sender: currentUserId, timestamp: acceptanceMessage.createdAt, messageType: 'negotiation_accepted' };
     await conversation.save();
 
-    // Populate negotiation data
     await negotiation.populate([
       { path: 'organizer', select: 'firstName lastName email role' },
       { path: 'speaker', select: 'firstName lastName email role' },
       { path: 'event', select: 'title date' }
     ]);
 
-    // Emit real-time event
-    socketService.io.to(negotiation.conversation.toString()).emit('negotiation_accepted', {
-      negotiation: negotiation,
-      message: acceptanceMessage
-    });
+    socketService.io.to(negotiation.conversation.toString()).emit('negotiation_accepted', { negotiation, message: acceptanceMessage });
 
-    res.status(200).json({
-      success: true,
-      message: 'Proposal accepted successfully',
-      negotiation: negotiation,
-      message: acceptanceMessage
-    });
+    res.status(200).json({ success: true, message: 'Proposal accepted successfully', negotiation, message: acceptanceMessage });
 
   } catch (error) {
     console.error('Error accepting proposal:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
 
@@ -417,109 +262,65 @@ export const declineProposal = async (req, res) => {
     const currentUserId = req.user._id;
 
     const negotiation = await Negotiation.findById(negotiationId);
-    if (!negotiation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Negotiation not found'
-      });
-    }
+    if (!negotiation) return res.status(404).json({ success: false, message: 'Negotiation not found' });
 
-    // Check if user is participant
     const currentUserIdStr = currentUserId.toString();
     const organizerIdStr = negotiation.organizer.toString();
     const speakerIdStr = negotiation.speaker.toString();
-    
-    if (organizerIdStr !== currentUserIdStr && 
-        speakerIdStr !== currentUserIdStr) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied to this negotiation'
-      });
+    if (organizerIdStr !== currentUserIdStr && speakerIdStr !== currentUserIdStr) {
+      return res.status(403).json({ success: false, message: 'Access denied to this negotiation' });
     }
 
-    // Check if negotiation is still active
     if (negotiation.status !== 'active') {
-      return res.status(400).json({
-        success: false,
-        message: 'Negotiation is no longer active'
-      });
+      return res.status(400).json({ success: false, message: 'Negotiation is no longer active' });
     }
 
-    // Check if there's a pending proposal to decline
     const lastProposal = negotiation.proposals[negotiation.proposals.length - 1];
     if (!lastProposal || lastProposal.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: 'No pending proposal to decline'
-      });
+      return res.status(400).json({ success: false, message: 'No pending proposal to decline' });
     }
 
-    // Check if user is not the one who made the proposal
     if (lastProposal.proposedBy.toString() === currentUserIdStr) {
-      return res.status(400).json({
-        success: false,
-        message: 'You cannot decline your own proposal'
-      });
+      return res.status(400).json({ success: false, message: 'You cannot decline your own proposal' });
     }
 
-    // Decline the proposal
     await negotiation.respondToProposal(negotiation.proposals.length - 1, 'declined', message);
 
-    // Create decline message
+    negotiation.currentProposal = { ...lastProposal, status: 'declined', respondedAt: new Date(), responseMessage: message || 'Proposal declined' };
+    negotiation.status = 'declined';
+    await negotiation.save();
+
     const declineMessage = new Message({
       content: `❌ Proposal declined: ${negotiation.currentProposal.currency} ${negotiation.currentProposal.amount} - ${message || 'Proposal not accepted'}`,
       messageType: 'negotiation_declined',
       sender: currentUserId,
       conversation: negotiation.conversation,
-      metadata: {
-        negotiationId: negotiation._id,
-        amount: negotiation.currentProposal.amount,
-        currency: negotiation.currentProposal.currency
-      }
+      metadata: { negotiationId: negotiation._id, amount: negotiation.currentProposal.amount, currency: negotiation.currentProposal.currency }
     });
 
     await declineMessage.save();
 
-    // Update conversation's last message
     const conversation = await Conversation.findById(negotiation.conversation);
-    conversation.lastMessage = {
-      content: `❌ Proposal declined: ${negotiation.currentProposal.currency} ${negotiation.currentProposal.amount}`,
-      sender: currentUserId,
-      timestamp: declineMessage.createdAt,
-      messageType: 'negotiation_declined'
-    };
+    conversation.lastMessage = { content: `❌ Proposal declined: ${negotiation.currentProposal.currency} ${negotiation.currentProposal.amount}`, sender: currentUserId, timestamp: declineMessage.createdAt, messageType: 'negotiation_declined' };
     await conversation.save();
 
-    // Populate negotiation data
     await negotiation.populate([
       { path: 'organizer', select: 'firstName lastName email role' },
       { path: 'speaker', select: 'firstName lastName email role' },
       { path: 'event', select: 'title date' }
     ]);
 
-    // Emit real-time event
-    socketService.io.to(negotiation.conversation.toString()).emit('negotiation_declined', {
-      negotiation: negotiation,
-      message: declineMessage
-    });
+    socketService.io.to(negotiation.conversation.toString()).emit('negotiation_declined', { negotiation, message: declineMessage });
 
-    res.status(200).json({
-      success: true,
-      message: 'Proposal declined successfully',
-      negotiation: negotiation,
-      message: declineMessage
-    });
+    res.status(200).json({ success: true, message: 'Proposal declined successfully', negotiation, message: declineMessage });
 
   } catch (error) {
     console.error('Error declining proposal:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
 
+// Other methods (cancelNegotiation, getUserNegotiations, getNegotiationStats, etc.) remain the same
 // Cancel negotiation
 export const cancelNegotiation = async (req, res) => {
   try {
@@ -799,3 +600,4 @@ export const getNegotiationStatsAdmin = async (req, res) => {
     });
   }
 };
+

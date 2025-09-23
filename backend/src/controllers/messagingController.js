@@ -3,6 +3,8 @@ import Message from '../models/message.js';
 import MessageStatus from '../models/messageStatus.js';
 import EnhancedUser from '../models/enhancedUser.js';
 import socketService from '../services/socketService.js';
+import Event from '../models/event.js';
+
 
 // Create or get conversation between users
 export const createOrGetConversation = async (req, res) => {
@@ -19,6 +21,14 @@ export const createOrGetConversation = async (req, res) => {
       });
     }
 
+      // If eventId is provided, fetch event topic
+    let conversationContext = context || {};
+    if (context?.eventId) {
+      const event = await Event.findById(context.eventId);
+      if (event) {
+        conversationContext.topic = event.name; // Use the event name as topic
+      }
+    }
     // Check if conversation already exists
     let conversation = await Conversation.findBetweenUsers(currentUserId, participantId, type);
 
@@ -42,11 +52,12 @@ export const createOrGetConversation = async (req, res) => {
           }
         ],
         type: type,
-        context: context || {},
+        context: conversationContext,
         status: 'active'
       });
 
       await conversation.save();
+      
 
       // Create message statuses for both participants
       await MessageStatus.create([
@@ -67,7 +78,8 @@ export const createOrGetConversation = async (req, res) => {
       // Broadcast conversation creation
       socketService.io.emit('conversation_created', {
         conversation: conversation,
-        participants: [currentUserId, participantId]
+        participants: [currentUserId, participantId],
+        eventId: context?.eventId || null
       });
     }
 
@@ -80,7 +92,19 @@ export const createOrGetConversation = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Conversation retrieved successfully',
-      conversation: conversation
+      conversation: {
+    _id: conversation._id,
+    type: conversation.type,
+    status: conversation.status,
+    participants: conversation.participants.map(p => ({
+      _id: p.user._id,
+      name: `${p.user.firstName} ${p.user.lastName}`,
+      role: p.role,
+      profileImageUrl: p.user.profileImageUrl
+    })),
+    context: conversation.context,   
+    lastMessage: conversation.lastMessage
+  }
     });
 
   } catch (error) {
@@ -157,6 +181,9 @@ export const getConversationMessages = async (req, res) => {
         message: 'Access denied to this conversation'
       });
     }
+    await Message.populate(messages, { path: 'sender', select: 'firstName lastName profileImageUrl role' });
+
+    await conversation.populate('participants.user', 'firstName lastName profileImageUrl role');
 
     const messages = await Message.findInConversation(
       conversationId,
@@ -181,6 +208,12 @@ export const getConversationMessages = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Internal server error',
+      participants: conversation.participants.map(p => ({
+         _id: p.user._id,
+         name: `${p.user.firstName} ${p.user.lastName}`,
+         role: p.role
+        })),
+        eventId: conversation.context?.eventId || null,
       error: error.message
     });
   }
@@ -208,7 +241,10 @@ export const sendMessage = async (req, res) => {
       messageType,
       sender: senderId,
       conversation: conversationId,
-      'metadata.replyTo': replyTo,
+      metadata: {
+      eventId: conversation.context?.eventId, // ✅ take from conversation
+    replyTo: replyTo
+  },
       attachments: attachments || []
     });
 
@@ -236,22 +272,52 @@ export const sendMessage = async (req, res) => {
     // Populate message data
     await message.populate([
       { path: 'sender', select: 'firstName lastName profileImageUrl role' },
-      { path: 'metadata.replyTo', select: 'content sender' }
-    ]);
+      { path: 'metadata.replyTo', select: 'content sender' }])
 
-    res.status(201).json({
-      success: true,
-      message: 'Message sent successfully',
-      message: message
-    });
+    await conversation.populate('participants.user', 'firstName lastName profileImageUrl role');
+    
+// After saving message
+await message.populate([
+  { path: 'sender', select: 'firstName lastName profileImageUrl role' },
+  { path: 'metadata.replyTo', select: 'content sender' }
+]);
+
+res.status(201).json({
+  success: true,
+  message: {
+    _id: message._id,
+    content: message.content,
+    messageType: message.messageType,
+    sender: message.sender,                   // ✅ Populated sender
+    conversation: message.conversation,
+    status: message.status,
+    attachments: message.attachments,
+    metadata: {
+      ...message.metadata,
+      eventId: message.metadata?.eventId     // ✅ Include eventId
+    },
+    adminAccess: message.adminAccess,
+    isEncrypted: message.isEncrypted,
+    priority: message.priority,
+    readBy: message.readBy,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt
+  }
+});
 
   } catch (error) {
     console.error('Error sending message:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',
-      error: error.message
-    });
+      participants: conversation.participants.map(p => ({
+         _id: p.user._id,
+         name: `${p.user.firstName} ${p.user.lastName}`,
+         role: p.role
+        })),
+        eventId: conversation.context?.eventId || null,
+        error: error.message
+      });
   }
 };
 

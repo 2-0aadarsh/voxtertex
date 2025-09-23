@@ -29,6 +29,10 @@ import messagingTestRoutes from './routes/messagingTestRoutes.js';
 import negotiationRoutes from './routes/negotiationRoutes.js';
 import speakerSearchRoutes from './routes/speakerSearchRoutes.js';
 import bookSpeakerRoutes from'./routes/bookSpeakerRoutes.js';
+import tagSpeakerRoutes from "./routes/tagSpeakerRoutes.js";
+import speakerManagementRoutes from './routes/speakerManagementRoutes.js';
+
+
 import cors from "cors";
 import session from "express-session";
 import corsMiddleware from "./middleware/cors.js";
@@ -133,6 +137,10 @@ app.use("/api/work-experience", workExperienceRoutes);
 app.use("/api/education", educationRoutes);
 app.use("/api/awards", awardRoutes);
 app.use("/api/book-speaker", bookSpeakerRoutes);
+app.use("/api/speakers", tagSpeakerRoutes);
+app.use('/api/speaker-management', speakerManagementRoutes);
+app.use('/api/negotiations', negotiationRoutes);
+
 
 // Featured videos and upload routes
 app.use("/api/featured-videos", featuredVideoRoutes);
