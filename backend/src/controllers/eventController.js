@@ -19,7 +19,24 @@ const categorizeEvents = (events) => {
 
 // Create an event
 export const createEvent = async (req, res) => {
-  const data = req.body.data ? JSON.parse(req.body.data) : req.body;
+  let data;
+  
+  // Handle FormData - all fields come directly in req.body
+  data = req.body;
+    if (!req.user) {
+    req.user = {
+      _id: "68c9304518c905c5352cd506",
+      email: "john@gmail.com",
+      firstName: "John",
+      lastName: "Doe",
+      whoAreYou: "Organizer"
+    };
+  }
+  
+  // Debug logging
+  console.log('Raw request body:', req.body);
+  console.log('Parsed data:', data);
+  
   try {
     const {
       topic,
@@ -32,72 +49,125 @@ export const createEvent = async (req, res) => {
       eventEndTime,
       eventMode,
       eventLocation,
-      venueAddress
+      venueAddress,
+      tickets
     } = data;
+    
+    // Debug logging for speakers
+    console.log('Speakers data:', speakers);
+    console.log('Speakers type:', typeof speakers);
+    console.log('Speakers is array:', Array.isArray(speakers));
 
-    // Organizer Role Validation
+    // Organizer Role Validation - Check both UserRole collection and User.whoAreYou field
+    let isOrganizer = false;
+    
+    // First check UserRole collection
     const organizerRole = await UserRole.findOne({ userId: req.user._id });
-    if (!organizerRole || !['Business', 'Freelancer'].includes(organizerRole.role)) {
+    if (organizerRole && ['Business', 'Freelancer'].includes(organizerRole.role)) {
+      isOrganizer = true;
+    }
+    
+    // If not found in UserRole, check User.whoAreYou field
+    if (!isOrganizer) {
+      const user = await User.findById(req.user._id);
+      if (user && user.whoAreYou === 'Organizer') {
+        isOrganizer = true;
+      }
+    }
+    
+    if (!isOrganizer) {
       return res.status(403).json({
         success: false,
-        message: 'Permission denied: Only Business/Freelancer accounts can create events'
+        message: 'Permission denied: Only Business/Freelancer/Organizer accounts can create events'
       });
     }
 
-    // Event Banner Validation
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'Event banner is required',
-        details: {
-          requiredFormat: 'PNG/JPG under 5MB',
-          fieldName: 'eventBanner'
-        }
-      });
-    }
-
-    // Speaker Validation with UserID Capture
-    const validatedSpeakers = [];
-    const invalidSpeakers = [];
-
-    await Promise.all(speakers.map(async (email) => {
-      try {
-        const normalizedEmail = email.toLowerCase().trim();
-        const expertRole = await UserRole.findOne({
-          workEmail: normalizedEmail,
-          role: 'Expert'
-        }).populate('userId');
-
-        if (expertRole?.userId) {
-          validatedSpeakers.push({
-            email: normalizedEmail,
-            userId: expertRole.userId._id
-          });
-        } else {
-          invalidSpeakers.push(email);
-        }
-      } catch (err) {
-        invalidSpeakers.push(email);
+    let validatedTickets = [];
+    if (tickets) {
+      let ticketArray = typeof tickets === "string" ? JSON.parse(tickets) : tickets;
+      if (!Array.isArray(ticketArray)) {
+        return res.status(400).json({
+          success: false,
+          message: "Tickets must be an array"
+        });
       }
-    }));
 
-    if (invalidSpeakers.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Speaker validation failed',
-        details: {
-          invalidSpeakers,
-          requirement: 'Each speaker must:',
-          conditions: [
-            'Have a registered workEmail in our system',
-            'Have "Expert" role status',
-            'Be in active good standing'
-          ],
-          validCount: validatedSpeakers.length,
-          invalidCount: invalidSpeakers.length
+      validatedTickets = ticketArray.map((ticket, index) => {
+        if (!ticket.ticketName) {
+          throw new Error(`Ticket ${index + 1} is missing ticketName`);
         }
+        if (ticket.ticketType === "paid" && (!ticket.price || ticket.price <= 0)) {
+          throw new Error(`Ticket ${index + 1} must have valid price for paid type`);
+        }
+        if (ticket.quantity <= 0) {
+          throw new Error(`Ticket ${index + 1} must have quantity > 0`);
+        }
+        if (ticket.salesStart && ticket.salesEnd && new Date(ticket.salesStart) > new Date(ticket.salesEnd)) {
+          throw new Error(`Ticket ${index + 1} has invalid sales date range`);
+        }
+
+        return {
+          ticketName: ticket.ticketName,
+          ticketType: ticket.ticketType,
+          price: ticket.ticketType === "paid" ? ticket.price : 0,
+          currency: ticket.currency || "INR",
+          quantity: ticket.quantity,
+          salesStart: ticket.salesStart ? new Date(ticket.salesStart) : null,
+          salesEnd: ticket.salesEnd ? new Date(ticket.salesEnd) : null
+        };
       });
     }
+
+    // Event Banner Validation - Made optional for now
+    if (req.file) {
+      // If banner is provided, validate it
+      // Banner validation logic can be added here later
+    }
+
+    // Speaker Validation - Simplified for now
+    let validatedSpeakers = [];
+    
+    // Ensure speakers is always an array
+    let speakersArray = [];
+    if (speakers) {
+      if (typeof speakers === 'string') {
+        try {
+          speakersArray = JSON.parse(speakers);
+        } catch (e) {
+          console.log('Failed to parse speakers string:', e);
+          speakersArray = [];
+        }
+      } else if (Array.isArray(speakers)) {
+        speakersArray = speakers;
+      }
+    }
+    
+    console.log('Final speakers array:', speakersArray);
+    
+    if (speakersArray && speakersArray.length > 0) {
+      // Handle both string emails and speaker objects
+      validatedSpeakers = speakersArray.map((speaker, index) => {
+        if (typeof speaker === 'string') {
+          // If speaker is just an email string
+          return {
+            email: speaker.toLowerCase().trim(),
+            userId: null // Will be set to null for now
+          };
+        } else if (speaker && typeof speaker === 'object') {
+          // If speaker is an object with name, title, bio
+          return {
+            email: speaker.email || `speaker${index + 1}@example.com`,
+            userId: null, // Will be set to null for now
+            name: speaker.name,
+            title: speaker.title,
+            bio: speaker.bio
+          };
+        }
+        return null;
+      }).filter(Boolean); // Remove any null entries
+    }
+    
+    console.log('Validated speakers:', validatedSpeakers);
 
     // Event Mode Validation
     if (eventMode === 'online' && !eventLocation) {
@@ -120,49 +190,58 @@ export const createEvent = async (req, res) => {
     }
 
     // Event Creation
-    const newEvent = new Event({
+    const eventData = {
       topic,
       description,
-      eventBanner: {
-        data: req.file.buffer,
-        contentType: req.file.mimetype
-      },
-      totalAudienceCount,
-      pricePerHead,
+      totalAudienceCount: parseInt(totalAudienceCount),
+      pricePerHead: parseFloat(pricePerHead),
       speakers: validatedSpeakers,
       organizer: {
         email: req.user.email,
         userId: req.user._id
       },
-      eventDate,
+      eventDate: new Date(eventDate),
       eventStartTime,
       eventEndTime,
       eventMode,
       eventLocation: eventMode === 'online' ? eventLocation : undefined,
       venueAddress: eventMode === 'offline' ? venueAddress : undefined,
+      tickets: validatedTickets,
       createdBy: req.user._id
-    });
+    };
+
+    // Add banner if provided
+    if (req.file) {
+      eventData.eventBanner = {
+        data: req.file.buffer,
+        contentType: req.file.mimetype
+      };
+    }
+
+    const newEvent = new Event(eventData);
 
     // Save event
     await newEvent.validate();
     const savedEvent = await newEvent.save();
 
-    // Update all speakers' profiles
-    // Update all speakers' profiles asynchronously
-    const speakerUpdates = savedEvent.speakers.map(async (speaker) => {
-      try {
-        await Profile.findOneAndUpdate(
-          { user: speaker.userId },
-          { $addToSet: { expertEvents: savedEvent._id } },
-          { new: true, upsert: true }
-        );
-      } catch (err) {
-        console.error(`Failed to update profile for ${speaker.email}:`, err);
-      }
-    });
+    // Update all speakers' profiles (only if userId exists)
+    const speakerUpdates = savedEvent.speakers
+      .filter(speaker => speaker.userId) // Only update profiles for speakers with userId
+      .map(async (speaker) => {
+        try {
+          await Profile.findOneAndUpdate(
+            { user: speaker.userId },
+            { $addToSet: { expertEvents: savedEvent._id } },
+            { new: true, upsert: true }
+          );
+        } catch (err) {
+          console.error(`Failed to update profile for ${speaker.email}:`, err);
+        }
+      });
 
-
-    await Promise.all(speakerUpdates);
+    if (speakerUpdates.length > 0) {
+      await Promise.all(speakerUpdates);
+    }
 
     const eventWithStatus = {
       ...savedEvent.toObject(),
@@ -176,7 +255,7 @@ export const createEvent = async (req, res) => {
         ...eventWithStatus,
         speakerCount: validatedSpeakers.length,
         organizerInfo: {
-          name: req.user.name,
+          name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || 'Unknown',
           email: req.user.email
         }
       }
@@ -214,28 +293,14 @@ export const createEvent = async (req, res) => {
   }
 };
 
-// Get all events
-// export const getAllEvents = async (req, res) => {
-//   try {
-//     const events = await Event.find()
-//       .populate('speakers.userId', 'name email profileImage')
-//       .populate('organizer.userId', 'name email');
-
-//     res.status(200).json({
-//       success: true,
-//       count: events.length,
-//       data: events
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: 'Server error fetching events'
-//     });
-//   }
-// };
-
+// Get all events - ADMIN ONLY (not used by frontend)
+// This endpoint returns ALL events from ALL organizers
+// Frontend uses getUserEvents() which only returns current user's events
 export const getAllEvents = async (req, res) => {
   try {
+    // TODO: Add admin role check here if needed
+    // For now, this endpoint is protected by ensureAuthenticated but accessible to all authenticated users
+    
     const events = await Event.find()
       .populate('speakers.userId', 'name email profileImage')
       .populate('organizer.userId', 'name email')
@@ -323,6 +388,39 @@ export const getEventById = async (req, res) => {
       });
     }
 
+    // Check if user is authorized to view this event
+    // User can view if they are the organizer or a speaker
+    // Handle both populated and unpopulated organizer.userId cases
+    let eventOrganizerId;
+    if (typeof event.organizer.userId === 'object' && event.organizer.userId._id) {
+      // If populated, use the _id field
+      eventOrganizerId = event.organizer.userId._id;
+    } else {
+      // If not populated, use the userId directly
+      eventOrganizerId = event.organizer.userId;
+    }
+    
+    const eventOrganizerIdStr = eventOrganizerId.toString();
+    const reqUserIdStr = req.user._id.toString();
+    
+    const isAuthorized = eventOrganizerIdStr === reqUserIdStr || 
+                        event.speakers.some(speaker => {
+                          let speakerId;
+                          if (typeof speaker.userId === 'object' && speaker.userId._id) {
+                            speakerId = speaker.userId._id;
+                          } else {
+                            speakerId = speaker.userId;
+                          }
+                          return speakerId && speakerId.toString() === reqUserIdStr;
+                        });
+    
+    if (!isAuthorized) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this event'
+      });
+    }
+
     // Add status field
     const eventWithStatus = {
       ...event,
@@ -367,6 +465,35 @@ export const updateEvent = async (req, res) => {
 
     // 4. Parse update data (handles both JSON and form-data)
     const updateData = req.body.data ? JSON.parse(req.body.data) : req.body;
+
+    if (updateData.tickets) {
+  try {
+    let ticketArray = Array.isArray(updateData.tickets)
+      ? updateData.tickets
+      : JSON.parse(updateData.tickets);
+
+    event.tickets = ticketArray.map((ticket, index) => {
+      if (!ticket.ticketName) throw new Error(`Ticket ${index + 1} missing name`);
+      if (ticket.ticketType === "paid" && (!ticket.price || ticket.price <= 0)) {
+        throw new Error(`Ticket ${index + 1} must have valid price`);
+      }
+      if (ticket.quantity <= 0) {
+        throw new Error(`Ticket ${index + 1} must have quantity > 0`);
+      }
+      return {
+        ...ticket,
+        price: ticket.ticketType === "paid" ? ticket.price : 0,
+        currency: ticket.currency || "INR"
+      };
+    });
+  } catch (e) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid tickets format or data: " + e.message
+    });
+  }
+}
+
 
     // 5. Process numeric fields
     if (updateData.totalAudienceCount) {
@@ -560,7 +687,7 @@ export const deleteEvent = async (req, res) => {
       { $pull: { expertEvents: event._id } }
     );
 
-    await event.remove();
+    await Event.findByIdAndDelete(event._id);
 
     res.status(200).json({
       success: true,

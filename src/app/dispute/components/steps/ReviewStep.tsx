@@ -2,40 +2,48 @@ import { DisputeFormData } from '../../types/disputeTypes';
 import { Edit } from 'lucide-react';
 import axios from 'axios';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { log } from 'util';
 
 interface ReviewStepProps {
   formData: DisputeFormData;
   onStepChange: (step: number) => void;
-  onSubmit?: () => void; // optional now because we'll handle submit here
+  onSubmit?: () => void;
+  onClose: () => void;
   isLoading?: boolean;
 }
 
 export default function ReviewStep({
   formData,
   onStepChange,
+  onClose,
 }: ReviewStepProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
-  // Helper to safely show text or a dash if empty/whitespace
+  // Safely display value or a dash
   const safeText = (value?: string | number) =>
-    typeof value === 'string'
-      ? value.trim() || '-'
-      : value ?? '-';
+    typeof value === 'string' ? value.trim() || '-' : value ?? '-';
+  if(formData){
+    console.log("paries involved", formData.partiesInvolved);
+    
+  }
 
-  // Handle submission
-  const handleSubmit = async () => {
+  /** Submit dispute to backend API */
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsLoading(true);
 
-    // Get all respondent IDs from partiesInvolved
-   const respondentIds = formData.partiesInvolved
-  ?.map((p) => p.userId)   // pick userId from each party
-  .filter((id): id is string => !!id) // keep only non-null, non-undefined
-  || [];
+    const respondentIds =
+      formData.partiesInvolved
+        ?.map((p) => p.userId)
+        .filter((id): id is string => !!id) || [];
 
-if (respondentIds.length === 0) {
-  alert('Please select at least one respondent.');
-  return;
-}
+    if (respondentIds.length === 0) {
+      alert('Please select at least one respondent.');
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const payload = {
@@ -43,12 +51,34 @@ if (respondentIds.length === 0) {
         description: formData.detailedDescription,
         category: formData.disputeReason,
         priority: 'medium',
-        respondentId: respondentIds[0], // backend expects one respondent
+        respondentId: respondentIds[0],
       };
+      console.log("access token is", localStorage.getItem('accessToken'))
 
-      const response = await axios.post('/api/disputes', payload);
+      // 👉  call your backend server, not Next.js /api
+      const token = localStorage.getItem('accessToken');
+if (!token) {
+  alert('Please log in first!');
+  return;
+}
+       try {
+    const response = await axios.post(
+      'http://localhost:3001/api/disputes',
+      payload,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        // withCredentials: true, // if backend uses cookies
+      }
+    );
+
+    console.log('API response:', response.data);
+  } catch (error: any) {
+    console.error('API call error:', error.response?.data || error.message);
+  }
+
       alert('Dispute created successfully!');
-      // Optionally redirect or clear form here
+      onClose();
+      router.push('/dispute');
     } catch (error: any) {
       console.error('Submit dispute error:', error);
       alert(error?.response?.data?.message || 'Failed to submit dispute.');
@@ -58,12 +88,11 @@ if (respondentIds.length === 0) {
   };
 
   return (
-    <div className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <h3 className="text-lg font-medium text-orange-500 mb-4">
         Review & Submit
       </h3>
 
-      {/* Event Information */}
       <SectionCard
         title="Event Information"
         step={1}
@@ -82,14 +111,13 @@ if (respondentIds.length === 0) {
         }
       />
 
-      {/* Parties Involved */}
       <SectionCard
         title="Parties Involved"
         step={2}
         onStepChange={onStepChange}
         content={
           <p className="text-gray-900">
-            {formData.partiesInvolved && formData.partiesInvolved.length > 0
+            {formData.partiesInvolved?.length
               ? formData.partiesInvolved
                   .map((p) => `${p.name} (${p.role})`)
                   .join(', ')
@@ -98,64 +126,58 @@ if (respondentIds.length === 0) {
         }
       />
 
-      {/* Dispute Details */}
       <SectionCard
         title="Dispute Details"
         step={3}
         onStepChange={onStepChange}
         content={
           <div className="space-y-1">
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Title</span>
-              <span className="text-sm text-gray-900">
-                {safeText(formData.disputeTitle)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Reason</span>
-              <span className="text-sm text-gray-900">
-                {safeText(formData.disputeReason)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Amount</span>
-              <span className="text-sm text-gray-900">{formData.amount ?? 0}</span>
-            </div>
+            <InfoRow label="Title" value={formData.disputeTitle} />
+            <InfoRow label="Reason" value={formData.disputeReason} />
+            <InfoRow label="Amount" value={formData.amount ?? 0} />
           </div>
         }
       />
 
-      {/* Description */}
       <SectionCard
         title="Description & Evidence"
         step={4}
         onStepChange={onStepChange}
         content={
           <div className="space-y-2">
+            <p className="text-sm text-gray-900">
+              {safeText(formData.detailedDescription)}
+            </p>
             <div>
-              <p className="text-sm text-gray-900">{safeText(formData.detailedDescription)}</p>
-            </div>
-            <div>
-              <h5 className="font-medium text-gray-700 mb-1">Requested Resolution</h5>
-              <p className="text-sm text-gray-900">{safeText(formData.preferredResolution)}</p>
+              <h5 className="font-medium text-gray-700 mb-1">
+                Requested Resolution
+              </h5>
+              <p className="text-sm text-gray-900">
+                {safeText(formData.preferredResolution)}
+              </p>
             </div>
             {formData.supportingDocument && (
               <div className="mt-2">
-                <h5 className="font-medium text-gray-700 mb-1">Supporting Document</h5>
-                <p className="text-sm text-gray-900">{formData.supportingDocument.name}</p>
+                <h5 className="font-medium text-gray-700 mb-1">
+                  Supporting Document
+                </h5>
+                <p className="text-sm text-gray-900">
+                  {formData.supportingDocument.name}
+                </p>
               </div>
             )}
             {formData.preferredContact && (
               <div>
-                <span className="text-sm text-gray-600">Preferred Contact</span>:{" "}
-                <span className="text-sm text-gray-900">{formData.preferredContact}</span>
+                <span className="text-sm text-gray-600">Preferred Contact</span>{' '}
+                <span className="text-sm text-gray-900">
+                  {formData.preferredContact}
+                </span>
               </div>
             )}
           </div>
         }
       />
 
-      {/* Submit & Previous Buttons */}
       <div className="flex justify-center items-center gap-4 pt-6">
         <button
           type="button"
@@ -166,13 +188,25 @@ if (respondentIds.length === 0) {
         </button>
 
         <button
-          onClick={handleSubmit}
+          type="submit"
           disabled={isLoading}
           className="px-8 py-2 bg-orange-500 text-white rounded-full font-medium hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? 'Submitting...' : 'Submit Dispute'}
         </button>
       </div>
+    </form>
+  );
+}
+
+/** Helper row for label/value pairs */
+function InfoRow({ label, value }: { label: string; value?: string | number }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-sm text-gray-600">{label}</span>
+      <span className="text-sm text-gray-900">
+        {typeof value === 'string' ? value || '-' : value ?? '-'}
+      </span>
     </div>
   );
 }

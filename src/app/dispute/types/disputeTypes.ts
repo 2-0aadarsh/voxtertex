@@ -25,6 +25,7 @@ export interface PartyInvolved {
   name: string
   role: string
   email?: string
+  phone?: string;
   userId?: string | null 
 }
 

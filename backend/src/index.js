@@ -31,7 +31,7 @@ import speakerSearchRoutes from './routes/speakerSearchRoutes.js';
 import bookSpeakerRoutes from'./routes/bookSpeakerRoutes.js';
 import tagSpeakerRoutes from "./routes/tagSpeakerRoutes.js";
 import speakerManagementRoutes from './routes/speakerManagementRoutes.js';
-
+import eventRegisterRoutes from './routes/eventRegisterRoutes.js'
 
 import cors from "cors";
 import session from "express-session";
@@ -140,6 +140,7 @@ app.use("/api/book-speaker", bookSpeakerRoutes);
 app.use("/api/speakers", tagSpeakerRoutes);
 app.use('/api/speaker-management', speakerManagementRoutes);
 app.use('/api/negotiations', negotiationRoutes);
+app.use("/api/registrations", eventRegisterRoutes);
 
 
 // Featured videos and upload routes

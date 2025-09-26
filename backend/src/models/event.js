@@ -1,5 +1,31 @@
 import mongoose from "mongoose";
 
+const ticketTierSchema = new mongoose.Schema({
+  ticketName: {
+    type: String,
+    required: [true, "Ticket name is required"],
+    trim: true,
+    maxlength: [100, "Ticket name cannot exceed 100 characters"],
+  },
+  price: {
+    type: Number,
+    required: [true, "Ticket price is required"],
+    min: [0, "Ticket price cannot be negative"],
+  },
+  quantity: {
+    type: Number,
+    required: [true, "Ticket quantity is required"],
+    min: [1, "Quantity must be at least 1"],
+  },
+  features: [
+    {
+      type: String,
+      trim: true,
+      maxlength: [200, "Feature cannot exceed 200 characters"],
+    },
+  ],
+});
+
 const eventSchema = new mongoose.Schema({
   topic: {
     type: String,
@@ -16,11 +42,11 @@ const eventSchema = new mongoose.Schema({
   eventBanner: {
     data: {
       type: Buffer,
-      required: [true, 'Event banner data is required']
+      required: false
     },
     contentType: {
       type: String,
-      required: [true, 'Event banner content type is required']
+      required: false
     }
   },
   totalAudienceCount: {
@@ -45,7 +71,19 @@ const eventSchema = new mongoose.Schema({
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true
+      required: false
+    },
+    name: {
+      type: String,
+      required: false
+    },
+    title: {
+      type: String,
+      required: false
+    },
+    bio: {
+      type: String,
+      required: false
     }
   }],
   // organizer: [{
@@ -68,9 +106,12 @@ const eventSchema = new mongoose.Schema({
     required: [true, 'Event date is required'],
     validate: {
       validator: function (v) {
-        return v > Date.now();
+        // Allow events to be created for today and future dates
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return v >= today;
       },
-      message: 'Event date must be in the future'
+      message: 'Event date must be today or in the future'
     }
   },
   eventStartTime: {
@@ -83,30 +124,52 @@ const eventSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Event mode is required'],
     enum: {
-      values: ['online', 'offline'],
-      message: 'Event mode must be either online or offline'
+      values: ['online', 'offline', 'hybrid'],
+      message: 'Event mode must be either online, offline or hybrid'
     }
   },
   eventLocation: {
     type: String,
-    required: [true, 'Event location is required'],
-    validate: {
-      validator: function (v) {
-        if (this.eventMode === 'online') {
-          return ['zoom pro', 'google meet', 'personal link'].includes(v.toLowerCase());
-        }
-        return true; // For offline, any string is acceptable
-      },
-      message: 'For online events, location must be "zoom pro", "google meet", or "personal link"'
-    }
-  },
-  venueAddress: {
-    type: String,
-    required: function () {
-      return this.eventMode === 'offline';
-    },
     trim: true,
-    maxlength: [500, 'Venue address cannot exceed 500 characters']
+    validate: [
+    {
+      validator: function (v) {
+        if (this.eventMode === 'online' || this.eventMode === 'hybrid') {
+          return v && v.trim().length > 0; // must be non-empty
+        }
+        return true; // not required otherwise
+      },
+      message: 'Event location is required for online or hybrid events'
+    },
+    {
+      validator: function (v) {
+        if ((this.eventMode === 'online' || this.eventMode === 'hybrid') && v) {
+          return v.startsWith('http://') || v.startsWith('https://');
+        }
+        return true;
+      },
+      message: 'Event location must be a valid URL'
+    }
+  ]
+  },
+ venueAddress: {
+  type: String,
+  trim: true,
+  maxlength: [500, 'Venue address cannot exceed 500 characters'],
+  validate: {
+    validator: function (v) {
+      if (this.eventMode === 'offline' || this.eventMode === 'hybrid') {
+        return v && v.trim().length > 0;
+      }
+      return true;
+    },
+    message: 'Venue address is required for offline or hybrid events'
+  }},
+   tickets: [ticketTierSchema],
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   }
 },
   {
@@ -114,12 +177,6 @@ const eventSchema = new mongoose.Schema({
     toJSON: { virtuals: true },  // Include virtuals when converting to JSON
     toObject: { virtuals: true } // Include virtuals when converting to objects
   });
-
-// Update the updatedAt field before saving
-eventSchema.pre('save', function (next) {
-  this.updatedAt = Date.now();
-  next();
-});
 
 // Virtual for checking if event is in the past
 eventSchema.virtual('isPast').get(function () {
@@ -136,12 +193,6 @@ eventSchema.virtual('status').get(function () {
   return this.eventDate < new Date() ? 'past' : 'future';
 }
 );
-
-// Update the updatedAt field before saving
-eventSchema.pre('save', function (next) {
-  this.updatedAt = Date.now();
-  next();
-});
 
 
 // eventSchema.post('save', async function(doc) {

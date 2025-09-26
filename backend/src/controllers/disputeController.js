@@ -1,73 +1,100 @@
+import mongoose from 'mongoose';
 import Dispute from '../models/dispute.js';
 import User from '../models/user.js';
+import jwt from 'jsonwebtoken';
 
-// Create a new dispute
 export const createDispute = async (req, res) => {
-    try {
-        const { title, description, category, priority, respondentId } = req.body;
-        const complainantId = req.user._id;
+    const authHeader = req.headers['authorization'];
+  const token = authHeader?.split(' ')[1]; // remove "Bearer "
+  
+  if (!token) return res.status(401).json({ message: 'Authentication required' });
 
-        // Validate required fields
+
+    const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET);
+    console.log('Decoded token:', decoded);
+    try {
+         const user = req.user; 
+        console.log('--- Create Dispute Called ---');
+        const { title, description, category, priority, respondentId } = req.body;
+
         if (!title || !description || !category || !respondentId) {
+            console.log('Missing required fields');
             return res.status(400).json({
                 success: false,
                 message: 'Please provide title, description, category, and respondent'
             });
         }
 
-        // Check if respondent exists
-        const respondent = await User.findById(respondentId);
+        const complainantId = mongoose.Types.ObjectId(req.user._id);
+        const respondentIdObj = mongoose.Types.ObjectId(respondentId);
+
+        console.log('Complainant ID:', complainantId.toString());
+        console.log('Respondent ID:', respondentIdObj.toString());
+
+        const respondent = await User.findById(respondentIdObj);
         if (!respondent) {
+            console.log('Respondent not found');
             return res.status(404).json({
                 success: false,
                 message: 'Respondent not found'
             });
         }
 
-        // Create the dispute
+        // Create dispute object
         const dispute = new Dispute({
             title,
             description,
             category,
             priority: priority || 'medium',
             complainant: complainantId,
-            respondent: respondentId,
+            respondent: respondentIdObj,
             peerToPeerData: {
                 startedAt: new Date(),
-                deadline: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)) // 7 days
+                deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
             }
         });
 
-        await dispute.save();
+        console.log('Dispute object created (before timeline & messages):', dispute);
 
-        // Add initial timeline entry
-        await dispute.addTimelineEntry(
-            'Dispute created',
-            complainantId,
-            `Dispute filed against ${respondent.firstName} ${respondent.lastName}`
-        );
+        // Add timeline entry
+        dispute.timeline.push({
+            action: 'Dispute created',
+            performedBy: complainantId,
+            details: 'Initial creation',
+            stage: dispute.currentStage,
+            timestamp: new Date()
+        });
 
-        // Populate the dispute with user details
-        await dispute.populate([
-            { path: 'complainant', select: 'firstName lastName email' },
-            { path: 'respondent', select: 'firstName lastName email' }
-        ]);
+        // Add initial message
+        dispute.messages.push({
+            sender: complainantId,
+            content: 'Dispute created successfully',
+            messageType: 'message',
+            timestamp: new Date()
+        });
 
-        res.status(201).json({
+        console.log('Timeline and message added to dispute:', dispute.timeline, dispute.messages);
+
+        // Save dispute to DB
+        const savedDispute = await dispute.save();
+        console.log('✅ Dispute saved successfully:', savedDispute._id);
+
+        return res.status(201).json({
             success: true,
             message: 'Dispute created successfully',
-            dispute
+            dispute: savedDispute
         });
 
     } catch (error) {
-        console.error('Create dispute error:', error);
-        res.status(500).json({
+        console.error('❌ Create dispute error:', error);
+        return res.status(500).json({
             success: false,
             message: 'Internal server error',
             error: error.message
         });
     }
 };
+
 
 // Get all disputes for the current user
 export const getUserDisputes = async (req, res) => {

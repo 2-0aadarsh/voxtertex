@@ -46,6 +46,13 @@ export default function LoginPage() {
       console.log('👤 User Data:', result.user)
       console.log('🔑 Tokens:', result.tokens)
       console.log('🎯 Redirect URL:', result.redirectUrl)
+         // ✅ Store access token in localStorage
+    if (result.tokens?.accessToken) {
+      localStorage.setItem('accessToken', result.tokens.accessToken)
+      console.log('💾 Access token stored in localStorage')
+    }
+
+    console.log('🎉 LOGIN SUCCESS - Redux Store Data:', result)
       
       setIsSuccess(true)
       setSuccessMessage('Login successful!')

@@ -112,12 +112,13 @@ const Sidebar = () => {
         {navigationItems.map((item, index) => (
           <div
             key={index}
+            onClick={() => router.push(item.href)}
             className={`cursor-pointer px-7 flex items-center justify-start text-[19.64px] font-semibold gap-5 w-[199px] h-[48px] rounded-[10px] ${
               item.active && `text-[#FF6B35] bg-[#FFE2D7] `
             }`}
           >
             {item.icon}
-            <a href="/">{item.label}</a>
+            <span>{item.label}</span>
           </div>
         ))}
       </div>

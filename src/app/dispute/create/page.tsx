@@ -12,8 +12,11 @@ import DescriptionStep from '../components/steps/DescriptionStep';
 import ReviewStep from '../components/steps/ReviewStep';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL as string) || 'http://localhost:3001';
+interface CreateDisputeProps {
+  onClose: () => void;  // define the prop
+}
 
-export default function CreateDispute() {
+export default function CreateDispute({ onClose }: CreateDisputeProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -93,7 +96,7 @@ export default function CreateDispute() {
         respondentId,
       };
 
-      const res = await fetch(`${API_BASE}/api/disputes`, {
+      const res = await fetch(`${API_BASE}/api/dispute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // include credentials so server-side session/cookie auth works
@@ -128,7 +131,7 @@ export default function CreateDispute() {
       case 4:
         return <DescriptionStep formData={formData} onInputChange={(e) => updateFormData({ [e.target.name]: e.target.value })} onFormDataUpdate={updateFormData} />;
       case 5:
-        return <ReviewStep formData={formData} onStepChange={setCurrentStep} onSubmit={handleSubmit} isLoading={isLoading} />;
+        return <ReviewStep formData={formData} onStepChange={setCurrentStep} onClose={() => window.location.href = '/dispute'}  onSubmit={handleSubmit} isLoading={isLoading} />;
       default:
         return null;
     }

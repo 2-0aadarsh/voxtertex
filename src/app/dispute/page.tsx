@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import {
-  Search, Filter, Calendar, Users, DollarSign, FileText, X, Bell,
+  Search, Filter, Bell, FileText, X
 } from 'lucide-react'
 import Link from 'next/link'
 import CreateDispute from './create/page'
@@ -26,6 +26,7 @@ export default function DisputeManagement() {
   const [statusFilter, setStatusFilter] = useState('All Statuses')
   const [stageFilter, setStageFilter] = useState('All Stages')
   const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   const [showModal, setShowModal] = useState(false)
 
   const fetchDisputes = async () => {
@@ -34,8 +35,11 @@ export default function DisputeManagement() {
       if (statusFilter !== 'All Statuses') params.status = statusFilter.toLowerCase()
       if (stageFilter !== 'All Stages') params.stage = stageFilter.toLowerCase().replace(' ', '-')
 
-      const res = await axios.get('/api/disputes', { params })
+      const res = await axios.get('/api/dispute', { params })
       setDisputes(res.data.disputes)
+      console.log("dispute data","res.data.dispute");
+      
+      setTotalPages(res.data.pagination?.pages || 1)
     } catch (err) {
       console.error('Failed to fetch disputes', err)
     }
@@ -45,7 +49,7 @@ export default function DisputeManagement() {
     fetchDisputes()
   }, [statusFilter, stageFilter, page])
 
-  // Filter search term locally
+  // Local search filtering
   const filtered = disputes.filter(d =>
     (d.title + d.description).toLowerCase().includes(searchTerm.toLowerCase())
   )
@@ -72,7 +76,7 @@ export default function DisputeManagement() {
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
       <aside className="w-56 bg-white border-r flex flex-col justify-between h-screen">
-        {/* ...Your sidebar code unchanged... */}
+        {/* ...Sidebar content here... */}
       </aside>
 
       {/* Main Content */}
@@ -91,7 +95,7 @@ export default function DisputeManagement() {
 
         {/* Main */}
         <main className="flex-1 p-8">
-          {/* Top banner */}
+          {/* Top Banner */}
           <div className="bg-gradient-to-r from-[#FF9974] via-[#FFB194] to-[#FFCBB8] rounded-lg flex justify-between items-center p-6 mb-8">
             <div>
               <h1 className="text-xl font-bold text-black">Dispute Resolution Center</h1>
@@ -116,7 +120,7 @@ export default function DisputeManagement() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg text-orange-400 font-semibold">All Disputes</h2>
             <span className="px-3 py-1 text-sm text-orange-500 border border-orange-300 rounded-full">
-              {filtered.length} of {disputes.length} Dispute
+              {filtered.length} of {disputes.length} Disputes
             </span>
           </div>
 
@@ -128,7 +132,7 @@ export default function DisputeManagement() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   className="w-full pl-9 border border-orange-200 rounded-md py-2 focus:ring-2 focus:ring-orange-300 outline-none"
-                  placeholder="Search Events..."
+                  placeholder="Search Disputes..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
                 />
@@ -207,24 +211,25 @@ export default function DisputeManagement() {
               </tbody>
             </table>
           </div>
-          {/* Pagination */}
-<div className="flex justify-end mt-4 gap-2">
-  <button
-    onClick={() => setPage(prev => Math.max(prev - 1, 1))}
-    disabled={page === 1}
-    className={`px-3 py-1 rounded-md border ${page === 1 ? 'bg-gray-200 cursor-not-allowed' : 'bg-white hover:bg-orange-50 border-orange-300'}`}
-  >
-    Prev
-  </button>
-  <span className="px-3 py-1 rounded-md border bg-white">{page}</span>
-  <button
-    onClick={() => setPage(prev => prev + 1)}
-    className="px-3 py-1 rounded-md border bg-white hover:bg-orange-50 border-orange-300"
-  >
-    Next
-  </button>
-</div>
 
+          {/* Pagination */}
+          <div className="flex justify-end mt-4 gap-2">
+            <button
+              onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+              disabled={page === 1}
+              className={`px-3 py-1 rounded-md border ${page === 1 ? 'bg-gray-200 cursor-not-allowed' : 'bg-white hover:bg-orange-50 border-orange-300'}`}
+            >
+              Prev
+            </button>
+            <span className="px-3 py-1 rounded-md border bg-white">{page}</span>
+            <button
+              onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={page === totalPages}
+              className={`px-3 py-1 rounded-md border ${page === totalPages ? 'bg-gray-200 cursor-not-allowed' : 'bg-white hover:bg-orange-50 border-orange-300'}`}
+            >
+              Next
+            </button>
+          </div>
 
           {/* Modal */}
           {showModal && (
@@ -233,7 +238,7 @@ export default function DisputeManagement() {
                 <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
                   <X size={22} />
                 </button>
-                <CreateDispute />
+                <CreateDispute onClose={() => setShowModal(false)} />
               </div>
             </div>
           )}

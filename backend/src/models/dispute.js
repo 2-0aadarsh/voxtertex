@@ -275,9 +275,11 @@ disputeSchema.pre('save', function(next) {
 disputeSchema.pre('save', function(next) {
     if (this.isNew && !this.disputeId) {
         this.disputeId = `DSP-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+        console.log('Generated disputeId:', this.disputeId);
     }
     next();
 });
+
 
 // Static method to find disputes by user (as complainant or respondent)
 disputeSchema.statics.findByUser = function(userId) {
@@ -300,7 +302,7 @@ disputeSchema.methods.addTimelineEntry = function(action, performedBy, details =
         stage: this.currentStage,
         timestamp: new Date()
     });
-    return this.save();
+    return this
 };
 
 // Instance method to add message
@@ -312,8 +314,10 @@ disputeSchema.methods.addMessage = function(sender, content, messageType = 'mess
         attachments,
         timestamp: new Date()
     });
-    return this.save();
+    return this
 };
+
+
 
 // Instance method to escalate dispute
 disputeSchema.methods.escalate = function(reason, escalatedBy) {
